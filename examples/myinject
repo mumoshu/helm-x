@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+cat $1
+echo
+echo \#injected
