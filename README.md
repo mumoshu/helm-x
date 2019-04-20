@@ -2,6 +2,8 @@
 
 `helm-x` makes `helm` better integrate with vanilla Kubernetes manifests, [kustomize](https://kustomize.io/), and manual sidecar injections.
 
+Check out the examples in the [examples](/examples) directory!
+
 ---
 
 It keeps all the good things of `helm` as an extendable package manager.
@@ -154,10 +156,6 @@ $ ./helm-x apply myapp examples/manifests/ --version 1.2.3 --debug
 
 * Not all flags present in the original `helm diff`, `helm template`, `helm upgrade` flags are implemented. If you need any other flags, please feel free to open issues and even submit pull requests.
 * If you are using the `--kube-context` flag, you need to change it to `--kubecontext`, since helm plugins [drop this flag](https://github.com/helm/helm/blob/master/docs/plugins.md#a-note-on-flag-parsing).
-
-## Examples
-
-Check out the examples in the [examples](/examples) directory!
 
 ## Acknowledgements
 
