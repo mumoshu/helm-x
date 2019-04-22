@@ -26,7 +26,7 @@ PASSED: myapp-test
 Show diff before further upgrade:
 
 ```
-$ helm diff myapp examples/kustomize --version 1.2.4 \
+$ helm x diff myapp examples/kustomize --version 1.2.4 \
   -f examples/kustomize/values.2.yaml
 ```
 

@@ -1,0 +1,15 @@
+images:
+- name: mysql
+  newName: eu.gcr.io/my-project/mysql
+  newTag: canary
+- name: myapp
+  digest: sha256:24a0c4b4a4c0eb97a1aabb8e29f18e917d05abfe1b7a7c07857230879ce7d3d3
+  newName: my-registry/my-app
+
+namePrefix: acme-
+
+namespace: mykustomizeapp
+
+nameSuffix: -acme
+
+testImage: "alpine:3.9"
