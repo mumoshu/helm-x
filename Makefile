@@ -38,3 +38,19 @@ dist:
 	tar -zcvf $(DIST)/$(PLUGIN_NAME)-windows-$(VERSION).tgz $(BINARY_NAME).exe README.md LICENSE.txt plugin.yaml
 	rm inj
 	rm inj.exe
+
+release/minor:
+	git fetch origin master
+	bash -c 'if git branch | grep autorelease; then git branch -D autorelease; else echo no branch to be cleaned; fi'
+	git checkout -b autorelease origin/master
+	git branch -D master || echo "no master branch found. skipping deletion"
+	git branch -m autorelease master
+	hack/semtag final -s minor
+
+release/patch:
+	git fetch origin master
+	bash -c 'if git branch | grep autorelease; then git branch -D autorelease; else echo no branch to be cleaned; fi'
+	git checkout -b autorelease origin/master
+	git branch -D master || echo "no master branch found. skipping deletion"
+	git branch -m autorelease master
+	hack/semtag final -s patch
