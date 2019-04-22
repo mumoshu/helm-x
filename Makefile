@@ -4,7 +4,7 @@ PLUGIN_NAME ?= helm-x
 HELM_PLUGIN_DIR ?= $(HELM_HOME)/plugins/helm-x
 VERSION := $(shell sed -n -e 's/version:[ "]*\([^"]*\).*/\1/p' plugin.yaml)
 DIST := $(CURDIR)/_dist
-LDFLAGS := "-X main.version=${VERSION}"
+LDFLAGS := "-X main.Version=${VERSION}"
 
 .PHONY: install
 install: build
@@ -18,6 +18,10 @@ uninstall:
 
 .PHONY: hookInstall
 hookInstall: build
+
+.PHONY: test
+test: build
+	echo no tests implemented yet!
 
 .PHONY: build
 build:

@@ -24,6 +24,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+var Version string
+
 func main() {
 	klog.InitFlags(nil)
 
@@ -35,9 +37,10 @@ func main() {
 
 func NewRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "x [apply|diff|template]",
+		Use:   "helm-x [apply|diff|template]",
 		Short: "Turn Kubernetes manifests, Kustomization, Helm Chart into Helm release. Sidecar injection supported.",
 		Long:  ``,
+		Version: Version,
 	}
 
 	out := cmd.OutOrStdout()

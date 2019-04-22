@@ -1,0 +1,57 @@
+version: 2
+jobs:
+  test:
+    docker:
+    - image: circleci/golang:1.12.4
+    environment:
+      GOPATH: /go
+    steps:
+    - checkout
+    - run: go env
+    - run: pwd
+    - restore_cache:
+        keys:
+        - go-mod-cache-v1-{{ checksum "./go.sum" }}
+        - go-mod-cache-v1-
+    - run: go mod download
+    - run: make test
+    - save_cache:
+        key: go-mod-cache-v1-{{ checksum "./go.sum" }}
+        paths:
+        - /go/pkg/mod
+    - persist_to_workspace:
+        root: /
+        paths:
+        - go
+  release:
+    docker:
+    - image: circleci/golang:1.12.4
+    steps:
+    - checkout
+    # We can't use attach_workpace due to that CircleCI skips `test` when it is already run before tagging
+    - restore_cache:
+        keys:
+        - go-mod-cache-v1-{{ checksum "./go.sum" }}
+        - go-mod-cache-v1-
+    - run: curl -sL https://git.io/goreleaser | bash
+workflows:
+  version: 2
+  build:
+    jobs:
+    - test
+  release:
+    jobs:
+    - test:
+        filters:
+          branches:
+            ignore: /.*/
+          tags:
+            only: /v[0-9]+(\.[0-9]+)*(-.*)*/
+    - release:
+        requires:
+        - test
+        filters:
+          branches:
+            ignore: /.*/
+          tags:
+            only: /v[0-9]+(\.[0-9]+)*(-.*)*/

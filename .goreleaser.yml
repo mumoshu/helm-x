@@ -1,0 +1,14 @@
+project_name: helm-x
+builds:
+- env:
+  - CGO_ENABLED=0
+  ldflags:
+  - -s -w -X main.Version={{.Version}}
+changelog:
+  filters:
+    # commit messages matching the regexp listed here will be removed from
+    # the changelog
+    # Default is empty
+    exclude:
+      - '^docs:'
+      - typo
