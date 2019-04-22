@@ -1,6 +1,34 @@
 # Helm X Plugin
 
+No more "Kustomize vs Helm".
+
 `helm-x` makes `helm` better integrate with vanilla Kubernetes manifests, [kustomize](https://kustomize.io/), and manual sidecar injections.
+
+---
+
+With `helm-x`, you can install and sidecar-inject helm charts, manifests, kustomize apps in the same way.
+
+Installing your kustomize app as a helm chart is as easy as running:
+
+```
+$ helm x apply myapp examples/kustomize --version 1.2.3 \
+  -f examples/kustomize/values.yaml
+```
+
+Then you can even run a [helm test](https://github.com/helm/helm/blob/master/docs/chart_tests.md):
+
+```
+$ helm test myapp
+RUNNING: myapp-test
+PASSED: myapp-test
+```
+
+Show diff before further upgrade:
+
+```
+$ helm diff myapp examples/kustomize --version 1.2.4 \
+  -f examples/kustomize/values.2.yaml
+```
 
 Check out the examples in the [examples](/examples) directory!
 
