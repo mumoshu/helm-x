@@ -1,4 +1,4 @@
-module github.com/maorfr/helm-inject
+module github.com/mumoshu/helm-x
 
 go 1.12
 

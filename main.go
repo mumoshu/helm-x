@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/maorfr/helm-inject/pkg"
+	"github.com/mumoshu/helm-x/pkg"
 	"github.com/spf13/pflag"
 	"io"
 	"io/ioutil"
