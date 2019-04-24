@@ -1,5 +1,5 @@
 name: "x"
-version: "0.2.2"
+version: "0.2.3"
 usage: "Turn Kubernetes manifests and Kustomization into Helm Release"
 description: "Turn Kubernetes manifests and Kustomization into Helm Release"
 command: "$HELM_PLUGIN_DIR/bin/helm-x"

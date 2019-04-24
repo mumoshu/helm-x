@@ -37,6 +37,8 @@ initOS() {
   esac
 }
 
+cd $(dirname $0)
+
 initArch
 initOS
 
