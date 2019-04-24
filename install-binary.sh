@@ -37,12 +37,12 @@ initOS() {
   esac
 }
 
-cd $(dirname $0)
+source_dir=$(dirname $0)
 
 initArch
 initOS
 
-VER=$(awk '/version:/{gsub(/\"/,"", $2); print $2}' plugin.yaml)
+VER=$(awk '/version:/{gsub(/\"/,"", $2); print $2}' ${source_dir}/plugin.yaml)
 version=v${VER}
 #version="$(curl -s https://api.github.com/repos/mumoshu/helm-x/releases/latest | awk '/\"tag_name\":/{gsub( /[,\"]/,"", $2); print $2}')"
 echo "Downloading and installing helm-x ${version} ..."
