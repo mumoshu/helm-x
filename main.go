@@ -37,9 +37,9 @@ func main() {
 
 func NewRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "helm-x [apply|diff|template]",
-		Short: "Turn Kubernetes manifests, Kustomization, Helm Chart into Helm release. Sidecar injection supported.",
-		Long:  ``,
+		Use:     "helm-x [apply|diff|template]",
+		Short:   "Turn Kubernetes manifests, Kustomization, Helm Chart into Helm release. Sidecar injection supported.",
+		Long:    ``,
 		Version: Version,
 	}
 
@@ -124,6 +124,7 @@ type commonOpts struct {
 	kubeContext string
 
 	injectors []string
+	injects   []string
 }
 
 func chartify(dirOrChart string, u commonOpts) (string, error) {
@@ -278,9 +279,9 @@ func chartify(dirOrChart string, u commonOpts) (string, error) {
 			return "", err
 		}
 	}
-
 	injectOptions := injectOptions{
 		injectors: u.injectors,
+		injects:   u.injects,
 		files:     generatedManifestFiles,
 	}
 	if err := inject(injectOptions); err != nil {
@@ -508,7 +509,8 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 func commonFlags(f *pflag.FlagSet) *commonOpts {
 	u := &commonOpts{}
 
-	f.StringArrayVar(&u.injectors, "injector", []string{}, "injector to use (must be pre-installed) and flags to be passed in the syntax of `'CMD SUBCMD,FLAG1=VAL1,FLAG2=VAL2'`. Flags should be without leading \"--\" (can specify multiple). \"FILE\" in values are replaced with the Kubernetes manifest file being injected. Example: \"--injector 'istioctl kube-inject f=FILE,injectConfigFile=inject-config.yaml,meshConfigFile=mesh.config.yaml\"")
+	f.StringArrayVar(&u.injectors, "injector", []string{}, "DEPRECATED: Use `--inject \"CMD ARG1 ARG2\"` instead. injector to use (must be pre-installed) and flags to be passed in the syntax of `'CMD SUBCMD,FLAG1=VAL1,FLAG2=VAL2'`. Flags should be without leading \"--\" (can specify multiple). \"FILE\" in values are replaced with the Kubernetes manifest file being injected. Example: \"--injector 'istioctl kube-inject f=FILE,injectConfigFile=inject-config.yaml,meshConfigFile=mesh.config.yaml\"")
+	f.StringArrayVar(&u.injects, "inject", []string{}, "injector to use (must be pre-installed) and flags to be passed in the syntax of `'istioctl kube-inject -f FILE'`. \"FILE\" is replaced with the Kubernetes manifest file being injected")
 
 	f.StringArrayVarP(&u.valueFiles, "values", "f", []string{}, "specify values in a YAML file or a URL (can specify multiple)")
 	f.StringArrayVar(&u.values, "set", []string{}, "set values on the command line (can specify multiple)")
@@ -572,6 +574,7 @@ func getFilesToActOn(o fileOptions) ([]string, error) {
 		files = append(files, path)
 		return nil
 	})
+
 	if err != nil {
 		return nil, err
 	}
@@ -620,6 +623,7 @@ func template(o templateOptions) error {
 
 type injectOptions struct {
 	injectors []string
+	injects   []string
 	files     []string
 }
 
@@ -646,6 +650,20 @@ func inject(o injectOptions) error {
 			flags := strings.Replace(flagsTemplate, "FILE", file, 1)
 			command := fmt.Sprintf("%s %s", injector, flags)
 			stdout, stderr, err := Capture(command)
+			if err != nil {
+				return fmt.Errorf(string(stderr))
+			}
+			if err := ioutil.WriteFile(file, stdout, 0644); err != nil {
+				return err
+			}
+		}
+	}
+
+	for _, tmpl := range o.injects {
+		for _, file := range o.files {
+			cmd := strings.Replace(tmpl, "FILE", file, 1)
+
+			stdout, stderr, err := Capture(cmd)
 			if err != nil {
 				return fmt.Errorf(string(stderr))
 			}
