@@ -102,6 +102,8 @@ type templateCmd struct {
 
 	chart string
 
+	asRelease bool
+
 	out io.Writer
 }
 
@@ -139,6 +141,7 @@ type commonOpts struct {
 	namespace   string
 	version     string
 	kubeContext string
+	tillerNs    string
 
 	injectors []string
 	injects   []string
@@ -442,6 +445,9 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 				namespace:   u.namespace,
 				kubeContext: u.kubeContext,
 				debug:       u.debug,
+				asRelease:   u.asRelease,
+				tillerNs:    u.tillerNs,
+				version:     u.version,
 			}
 			if err := runTemplate(opts); err != nil {
 				cmd.SilenceUsage = true
@@ -456,6 +462,8 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 	u.commonOpts = commonFlags(f)
 
 	f.StringVar(&u.release, "name", "release-name", "release name (default \"release-name\")")
+	f.StringVar(&u.tillerNs, "tiller-namsepace", "kube-system", "namespace in which release confgimap/secret objects reside")
+	f.BoolVar(&u.asRelease, "as-release", false, "turn the result into a proper helm release, by removing hooks from the manifest, and including a helm release configmap/secret that should otherwise created by `helm [upgrade|install]`")
 
 	return cmd
 }
@@ -588,14 +596,14 @@ So that the full command looks like:
 					return err
 				}
 
-				yamlData, err := yamlMarshal(item)
+				yamlData, err := x.YamlMarshal(item)
 				if err != nil {
 					return err
 				}
 
 				item = export(item)
 
-				yamlData, err = yamlMarshal(item)
+				yamlData, err = x.YamlMarshal(item)
 				if err != nil {
 					return err
 				}
@@ -614,14 +622,14 @@ So that the full command looks like:
 				}
 
 				for _, item := range v.Items {
-					yamlData, err := yamlMarshal(item)
+					yamlData, err := x.YamlMarshal(item)
 					if err != nil {
 						return err
 					}
 
 					item = export(item)
 
-					yamlData, err = yamlMarshal(item)
+					yamlData, err = x.YamlMarshal(item)
 					if err != nil {
 						return err
 					}
@@ -650,18 +658,6 @@ So that the full command looks like:
 	f.StringVar(&u.namespace, "namespace", "", "The namespace in which the resources to be adopted reside")
 
 	return cmd
-}
-
-func yamlMarshal(v interface{}) ([]byte, error) {
-	buf := &bytes.Buffer{}
-	marshaller := yaml.NewEncoder(buf)
-	marshaller.SetIndent(2)
-
-	if err := marshaller.Encode(v); err != nil {
-		return nil, err
-	}
-
-	return buf.Bytes(), nil
 }
 
 func export(item map[string]interface{}) map[string]interface{} {
@@ -984,6 +980,10 @@ type runTemplateOptions struct {
 	tlsCert     string
 	tlsKey      string
 	kubeConfig  string
+
+	tillerNs  string
+	version   string
+	asRelease bool
 }
 
 func runTemplate(o runTemplateOptions) error {
@@ -1012,12 +1012,34 @@ func runTemplate(o runTemplateOptions) error {
 		additionalFlags += createFlagChain("tls-key", []string{o.tlsKey})
 	}
 
+	if o.version != "" {
+		additionalFlags += createFlagChain("--version", []string{o.version})
+	}
+
 	command := fmt.Sprintf("helm template %s%s", o.chart, additionalFlags)
 	stdout, stderr, err := Capture(command)
 	if err != nil || len(stderr) != 0 {
 		return fmt.Errorf(string(stderr))
 	}
-	fmt.Println(string(stdout))
+
+	var output string
+
+	if o.asRelease {
+		repoNameAndChart := strings.Split(o.chart, "/")
+
+		chartWithoutRepoName := repoNameAndChart[len(repoNameAndChart)-1]
+
+		ver := o.version
+
+		output, err = x.TurnHelmTemplateToInstall(chartWithoutRepoName, ver, o.tillerNs, o.name, o.namespace, string(stdout))
+		if err != nil {
+			return err
+		}
+	} else {
+		output = string(stdout)
+	}
+
+	fmt.Println(output)
 
 	return nil
 }

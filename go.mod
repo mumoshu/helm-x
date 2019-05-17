@@ -39,7 +39,7 @@ require (
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/square/go-jose.v2 v2.3.1 // indirect
-	gopkg.in/yaml.v2 v2.2.2 // indirect
+	gopkg.in/yaml.v2 v2.2.2
 	gopkg.in/yaml.v3 v3.0.0-20190409140830-cdc409dda467
 	k8s.io/api v0.0.0-20190515023547-db5a9d1c40eb
 	k8s.io/apiextensions-apiserver v0.0.0-20190515024537-2fd0e9006049 // indirect
@@ -52,7 +52,7 @@ require (
 	k8s.io/kube-openapi v0.0.0-20190510232812-a01b7d5d6c22 // indirect
 	k8s.io/kubernetes v1.13.1
 	k8s.io/utils v0.0.0-20190506122338-8fab8cb257d5 // indirect
-	sigs.k8s.io/yaml v1.1.0 // indirect
+	sigs.k8s.io/yaml v1.1.0
 	vbom.ml/util v0.0.0-20180919145318-efcd4e0f9787 // indirect
 )
 
