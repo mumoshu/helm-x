@@ -148,6 +148,34 @@ Flags:
       --version string                                specify the exact chart version to use. If this is not specified, the latest version is used
 ```
 
+### helm x adopt
+
+Adopt a set of existing K8s resources as if they are installed originally as a Helm chart.
+
+```console
+Adopt the existing kubernetes resources as a helm release
+
+RESOURCES are represented as a whitespace-separated list of kind/name, like:
+
+  configmap/foo.v1 secret/bar deployment/myapp
+
+So that the full command looks like:
+
+  helm x adopt myrelease configmap/foo.v1 secret/bar deployment/myapp
+
+Usage:
+  helm-x adopt [RELEASE] [RESOURCES]... [flags]
+
+Flags:
+  -h, --help                      help for adopt
+      --kubecontext string        the kubeconfig context to use
+      --namespace string          The namespace in which the resources to be adopted reside
+      --tiller-namespace string   the tiller namespaceto use (default "kube-system")
+      --tls                       enable TLS for request
+      --tls-cert string           path to TLS certificate file (default: $HELM_HOME/cert.pem)
+      --tls-key string            path to TLS key file (default: $HELM_HOME/key.pem)
+```
+
 ## Install
 
 ```

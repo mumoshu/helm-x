@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/mumoshu/helm-x/pkg"
@@ -37,7 +38,7 @@ func main() {
 
 func NewRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "helm-x [apply|diff|template]",
+		Use:     "helm-x [apply|diff|template|dump|adopt]",
 		Short:   "Turn Kubernetes manifests, Kustomization, Helm Chart into Helm release. Sidecar injection supported.",
 		Long:    ``,
 		Version: Version,
@@ -48,6 +49,8 @@ func NewRootCmd() *cobra.Command {
 	cmd.AddCommand(NewApplyCommand(out))
 	cmd.AddCommand(NewDiffCommand(out))
 	cmd.AddCommand(NewTemplateCommand(out))
+	cmd.AddCommand(NewUtilDumpRelease(out))
+	cmd.AddCommand(NewAdopt(out))
 
 	return cmd
 }
@@ -114,6 +117,20 @@ type diffCmd struct {
 	out io.Writer
 }
 
+type dumpCmd struct {
+	*clientOpts
+
+	out io.Writer
+}
+
+type adoptCmd struct {
+	*clientOpts
+
+	namespace string
+
+	out io.Writer
+}
+
 type commonOpts struct {
 	debug       bool
 	release     string
@@ -125,6 +142,14 @@ type commonOpts struct {
 
 	injectors []string
 	injects   []string
+}
+
+type clientOpts struct {
+	kubeContext string
+	tillerNs    string
+	tls         bool
+	tlsCert     string
+	tlsKey      string
 }
 
 func chartify(dirOrChart string, u commonOpts) (string, error) {
@@ -217,13 +242,13 @@ func chartify(dirOrChart string, u commonOpts) (string, error) {
 			for _, image := range kustomizeOpts.Images {
 				args = append(args, image.String())
 			}
-			_, err := apply.RunCommand("kustomize", args...)
+			_, err := x.RunCommand("kustomize", args...)
 			if err != nil {
 				return "", err
 			}
 		}
 		if kustomizeOpts.NamePrefix != "" {
-			_, err := apply.RunCommand("kustomize", "edit", "set", "nameprefix", kustomizeOpts.NamePrefix)
+			_, err := x.RunCommand("kustomize", "edit", "set", "nameprefix", kustomizeOpts.NamePrefix)
 			if err != nil {
 				fmt.Println(err)
 				return "", err
@@ -231,19 +256,19 @@ func chartify(dirOrChart string, u commonOpts) (string, error) {
 		}
 		if kustomizeOpts.NameSuffix != "" {
 			// "--" is there to avoid `namesuffix -acme` to fail due to `-a` being considered as a flag
-			_, err := apply.RunCommand("kustomize", "edit", "set", "namesuffix", "--", kustomizeOpts.NameSuffix)
+			_, err := x.RunCommand("kustomize", "edit", "set", "namesuffix", "--", kustomizeOpts.NameSuffix)
 			if err != nil {
 				return "", err
 			}
 		}
 		if kustomizeOpts.Namespace != "" {
-			_, err := apply.RunCommand("kustomize", "edit", "set", "namespace", kustomizeOpts.Namespace)
+			_, err := x.RunCommand("kustomize", "edit", "set", "namespace", kustomizeOpts.Namespace)
 			if err != nil {
 				return "", err
 			}
 		}
 		kustomizeFile := filepath.Join(dstTemplatesDir, "kustomized.yaml")
-		out, err := apply.RunCommand("kustomize", "-o", kustomizeFile, "build", tempDir)
+		out, err := x.RunCommand("kustomize", "-o", kustomizeFile, "build", tempDir)
 		if err != nil {
 			return "", err
 		}
@@ -506,6 +531,209 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 	return cmd
 }
 
+// NewAdopt represents the adopt command
+func NewAdopt(out io.Writer) *cobra.Command {
+	u := &adoptCmd{out: out}
+
+	cmd := &cobra.Command{
+		Use: "adopt [RELEASE] [RESOURCES]...",
+		Short: `Adopt the existing kubernetes resources as a helm release
+
+RESOURCES are represented as a whitespace-separated list of kind/name, like:
+
+  configmap/foo.v1 secret/bar deployment/myapp
+
+So that the full command looks like:
+
+  helm x adopt myrelease configmap/foo.v1 secret/bar deployment/myapp
+`,
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) < 2 {
+				return errors.New("requires at least two argument")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			release := args[0]
+			storage, err := x.NewConfigMapsStorage(u.tillerNs)
+			if err != nil {
+				return err
+			}
+
+			resources := args[1:]
+
+			kubectlArgs := []string{"get", "-o=json", "--export"}
+
+			var ns string
+			if u.namespace != "" {
+				ns = u.namespace
+			} else {
+				ns = "default"
+			}
+			kubectlArgs = append(kubectlArgs, "-n="+ns)
+
+			kubectlArgs = append(kubectlArgs, resources...)
+
+			jsonData, err := x.RunCommand("kubectl", kubectlArgs...)
+			if err != nil {
+				return err
+			}
+
+			var manifest string
+
+			if len(resources) == 1 {
+				item := map[string]interface{}{}
+
+				if err := json.Unmarshal([]byte(jsonData), &item); err != nil {
+					return err
+				}
+
+				yamlData, err := yamlMarshal(item)
+				if err != nil {
+					return err
+				}
+
+				item = export(item)
+
+				yamlData, err = yamlMarshal(item)
+				if err != nil {
+					return err
+				}
+
+				metadata := item["metadata"].(map[string]interface{})
+				escaped := fmt.Sprintf("%s.%s", metadata["name"], strings.ToLower(item["kind"].(string)))
+				manifest += manifest + fmt.Sprintf("\n---\n# Source: helm-x-dummy-chart/templates/%s.yaml\n", escaped) + string(yamlData)
+			} else {
+				type jsonVal struct {
+					Items []map[string]interface{} `json:"items"`
+				}
+				v := jsonVal{}
+
+				if err := json.Unmarshal([]byte(jsonData), &v); err != nil {
+					return err
+				}
+
+				for _, item := range v.Items {
+					yamlData, err := yamlMarshal(item)
+					if err != nil {
+						return err
+					}
+
+					item = export(item)
+
+					yamlData, err = yamlMarshal(item)
+					if err != nil {
+						return err
+					}
+
+					metadata := item["metadata"].(map[string]interface{})
+					escaped := fmt.Sprintf("%s.%s", metadata["name"], strings.ToLower(item["kind"].(string)))
+					manifest += manifest + fmt.Sprintf("\n---\n# Source: helm-x-dummy-chart/templates/%s.yaml\n", escaped) + string(yamlData)
+				}
+			}
+
+			if manifest == "" {
+				return fmt.Errorf("no resources to be adopted")
+			}
+
+			if err := storage.AdoptRelease(release, ns, manifest); err != nil {
+				return err
+			}
+
+			return nil
+		},
+	}
+	f := cmd.Flags()
+
+	u.clientOpts = clientFlags(f)
+
+	f.StringVar(&u.namespace, "namespace", "", "The namespace in which the resources to be adopted reside")
+
+	return cmd
+}
+
+func yamlMarshal(v interface{}) ([]byte, error) {
+	buf := &bytes.Buffer{}
+	marshaller := yaml.NewEncoder(buf)
+	marshaller.SetIndent(2)
+
+	if err := marshaller.Encode(v); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+func export(item map[string]interface{}) map[string]interface{} {
+	metadata := item["metadata"].(map[string]interface{})
+	if generateName, ok := metadata["generateName"]; ok {
+		metadata["name"] = generateName
+	}
+
+	delete(metadata, "generateName")
+	delete(metadata, "generation")
+	delete(metadata, "resourceVersion")
+	delete(metadata, "selfLink")
+	delete(metadata, "uid")
+
+	item["metadata"] = metadata
+
+	delete(item, "status")
+
+	return item
+}
+
+// NewDiffCommand represents the diff command
+func NewUtilDumpRelease(out io.Writer) *cobra.Command {
+	u := &dumpCmd{out: out}
+
+	cmd := &cobra.Command{
+		Use:   "dump [RELEASE]",
+		Short: "Dump the release object for developing purpose",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) != 1 {
+				return errors.New("requires one argument")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			release := args[0]
+			storage, err := x.NewConfigMapsStorage(u.tillerNs)
+			if err != nil {
+				return err
+			}
+
+			r, err := storage.GetRelease(release)
+			if err != nil {
+				return err
+			}
+
+			jsonBytes, err := json.Marshal(r)
+
+			jsonObj := map[string]interface{}{}
+			if err := json.Unmarshal(jsonBytes, &jsonObj); err != nil {
+				return err
+			}
+
+			yamlBytes, err := yaml.Marshal(jsonObj)
+			if err != nil {
+				return err
+			}
+
+			fmt.Printf("%s\n", string(yamlBytes))
+
+			fmt.Printf("manifest:\n%s", jsonObj["manifest"])
+
+			return nil
+		},
+	}
+	f := cmd.Flags()
+
+	u.clientOpts = clientFlags(f)
+
+	return cmd
+}
+
 func commonFlags(f *pflag.FlagSet) *commonOpts {
 	u := &commonOpts{}
 
@@ -520,6 +748,16 @@ func commonFlags(f *pflag.FlagSet) *commonOpts {
 
 	f.BoolVar(&u.debug, "debug", false, "enable verbose output")
 
+	return u
+}
+
+func clientFlags(f *pflag.FlagSet) *clientOpts {
+	u := &clientOpts{}
+	f.BoolVar(&u.tls, "tls", false, "enable TLS for request")
+	f.StringVar(&u.tlsCert, "tls-cert", "", "path to TLS certificate file (default: $HELM_HOME/cert.pem)")
+	f.StringVar(&u.tlsKey, "tls-key", "", "path to TLS key file (default: $HELM_HOME/key.pem)")
+	f.StringVar(&u.kubeContext, "kubecontext", "", "the kubeconfig context to use")
+	f.StringVar(&u.tillerNs, "tiller-namespace", "kube-system", "the tiller namespaceto use")
 	return u
 }
 
