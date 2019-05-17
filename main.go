@@ -46,7 +46,8 @@ func NewRootCmd() *cobra.Command {
 
 	out := cmd.OutOrStdout()
 
-	cmd.AddCommand(NewApplyCommand(out))
+	cmd.AddCommand(NewApplyCommand(out, "apply", true))
+	cmd.AddCommand(NewApplyCommand(out, "upgrade", false))
 	cmd.AddCommand(NewDiffCommand(out))
 	cmd.AddCommand(NewTemplateCommand(out))
 	cmd.AddCommand(NewUtilDumpRelease(out))
@@ -88,6 +89,7 @@ type applyCmd struct {
 
 	chart   string
 	dryRun  bool
+	install bool
 	timeout int
 
 	tls     bool
@@ -322,11 +324,11 @@ func chartify(dirOrChart string, u commonOpts) (string, error) {
 }
 
 // NewApplyCommand represents the apply command
-func NewApplyCommand(out io.Writer) *cobra.Command {
+func NewApplyCommand(out io.Writer, cmdName string, installByDefault bool) *cobra.Command {
 	u := &applyCmd{out: out}
 
 	cmd := &cobra.Command{
-		Use:   "apply [RELEASE] [DIR_OR_CHART]",
+		Use:   fmt.Sprintf("%s [RELEASE] [DIR_OR_CHART]", cmdName),
 		Short: "Install or upgrade the helm release from the directory or the chart specified",
 		Long: `Install or upgrade the helm release from the directory or the chart specified
 
@@ -367,6 +369,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 			upgradeOptions := upgradeOptions{
 				chart:       tempDir,
 				name:        release,
+				install:     u.install,
 				values:      u.values,
 				valuesFiles: u.valueFiles,
 				namespace:   u.namespace,
@@ -401,6 +404,8 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 	f.IntVar(&u.timeout, "timeout", 300, "time in seconds to wait for any individual Kubernetes operation (like Jobs for hooks)")
 
 	f.BoolVar(&u.dryRun, "dry-run", false, "simulate an upgrade")
+
+	f.BoolVar(&u.install, "install", installByDefault, "install the release if missing")
 
 	f.BoolVar(&u.tls, "tls", false, "enable TLS for request")
 	f.StringVar(&u.tlsCert, "tls-cert", "", "path to TLS certificate file (default: $HELM_HOME/cert.pem)")
@@ -949,7 +954,9 @@ func upgrade(o upgradeOptions) error {
 	additionalFlags += createFlagChain("set", o.values)
 	additionalFlags += createFlagChain("f", o.valuesFiles)
 	additionalFlags += createFlagChain("timeout", []string{fmt.Sprintf("%d", o.timeout)})
-	additionalFlags += createFlagChain("install", []string{""})
+	if o.install {
+		additionalFlags += createFlagChain("install", []string{""})
+	}
 	if o.namespace != "" {
 		additionalFlags += createFlagChain("namespace", []string{o.namespace})
 	}
