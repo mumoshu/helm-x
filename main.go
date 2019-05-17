@@ -94,6 +94,8 @@ type applyCmd struct {
 	tlsCert string
 	tlsKey  string
 
+	adopt []string
+
 	out io.Writer
 }
 
@@ -376,6 +378,13 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 				tlsCert:     u.tlsCert,
 				tlsKey:      u.tlsKey,
 			}
+
+			if len(u.adopt) > 0 {
+				if err := adopt(u.tillerNs, release, u.namespace, u.adopt); err != nil {
+					return err
+				}
+			}
+
 			if err := upgrade(upgradeOptions); err != nil {
 				cmd.SilenceUsage = true
 				return err
@@ -396,6 +405,8 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 	f.BoolVar(&u.tls, "tls", false, "enable TLS for request")
 	f.StringVar(&u.tlsCert, "tls-cert", "", "path to TLS certificate file (default: $HELM_HOME/cert.pem)")
 	f.StringVar(&u.tlsKey, "tls-key", "", "path to TLS key file (default: $HELM_HOME/key.pem)")
+
+	f.StringSliceVarP(&u.adopt, "adopt", "", []string{}, "adopt existing k8s resources before apply")
 
 	return cmd
 }
@@ -563,92 +574,10 @@ So that the full command looks like:
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			release := args[0]
-			storage, err := x.NewConfigMapsStorage(u.tillerNs)
-			if err != nil {
-				return err
-			}
-
+			tillerNs := u.tillerNs
 			resources := args[1:]
 
-			kubectlArgs := []string{"get", "-o=json", "--export"}
-
-			var ns string
-			if u.namespace != "" {
-				ns = u.namespace
-			} else {
-				ns = "default"
-			}
-			kubectlArgs = append(kubectlArgs, "-n="+ns)
-
-			kubectlArgs = append(kubectlArgs, resources...)
-
-			jsonData, err := x.RunCommand("kubectl", kubectlArgs...)
-			if err != nil {
-				return err
-			}
-
-			var manifest string
-
-			if len(resources) == 1 {
-				item := map[string]interface{}{}
-
-				if err := json.Unmarshal([]byte(jsonData), &item); err != nil {
-					return err
-				}
-
-				yamlData, err := x.YamlMarshal(item)
-				if err != nil {
-					return err
-				}
-
-				item = export(item)
-
-				yamlData, err = x.YamlMarshal(item)
-				if err != nil {
-					return err
-				}
-
-				metadata := item["metadata"].(map[string]interface{})
-				escaped := fmt.Sprintf("%s.%s", metadata["name"], strings.ToLower(item["kind"].(string)))
-				manifest += manifest + fmt.Sprintf("\n---\n# Source: helm-x-dummy-chart/templates/%s.yaml\n", escaped) + string(yamlData)
-			} else {
-				type jsonVal struct {
-					Items []map[string]interface{} `json:"items"`
-				}
-				v := jsonVal{}
-
-				if err := json.Unmarshal([]byte(jsonData), &v); err != nil {
-					return err
-				}
-
-				for _, item := range v.Items {
-					yamlData, err := x.YamlMarshal(item)
-					if err != nil {
-						return err
-					}
-
-					item = export(item)
-
-					yamlData, err = x.YamlMarshal(item)
-					if err != nil {
-						return err
-					}
-
-					metadata := item["metadata"].(map[string]interface{})
-					escaped := fmt.Sprintf("%s.%s", metadata["name"], strings.ToLower(item["kind"].(string)))
-					manifest += manifest + fmt.Sprintf("\n---\n# Source: helm-x-dummy-chart/templates/%s.yaml\n", escaped) + string(yamlData)
-				}
-			}
-
-			if manifest == "" {
-				return fmt.Errorf("no resources to be adopted")
-			}
-
-			if err := storage.AdoptRelease(release, ns, manifest); err != nil {
-				return err
-			}
-
-			return nil
+			return adopt(tillerNs, release, u.namespace, resources)
 		},
 	}
 	f := cmd.Flags()
@@ -658,6 +587,93 @@ So that the full command looks like:
 	f.StringVar(&u.namespace, "namespace", "", "The namespace in which the resources to be adopted reside")
 
 	return cmd
+}
+
+func adopt(tillerNs, release, namespace string, resources []string) error {
+	storage, err := x.NewConfigMapsStorage(tillerNs)
+	if err != nil {
+		return err
+	}
+
+	kubectlArgs := []string{"get", "-o=json", "--export"}
+
+	var ns string
+	if namespace != "" {
+		ns = namespace
+	} else {
+		ns = "default"
+	}
+	kubectlArgs = append(kubectlArgs, "-n="+ns)
+
+	kubectlArgs = append(kubectlArgs, resources...)
+
+	jsonData, err := x.RunCommand("kubectl", kubectlArgs...)
+	if err != nil {
+		return err
+	}
+
+	var manifest string
+
+	if len(resources) == 1 {
+		item := map[string]interface{}{}
+
+		if err := json.Unmarshal([]byte(jsonData), &item); err != nil {
+			return err
+		}
+
+		yamlData, err := x.YamlMarshal(item)
+		if err != nil {
+			return err
+		}
+
+		item = export(item)
+
+		yamlData, err = x.YamlMarshal(item)
+		if err != nil {
+			return err
+		}
+
+		metadata := item["metadata"].(map[string]interface{})
+		escaped := fmt.Sprintf("%s.%s", metadata["name"], strings.ToLower(item["kind"].(string)))
+		manifest += manifest + fmt.Sprintf("\n---\n# Source: helm-x-dummy-chart/templates/%s.yaml\n", escaped) + string(yamlData)
+	} else {
+		type jsonVal struct {
+			Items []map[string]interface{} `json:"items"`
+		}
+		v := jsonVal{}
+
+		if err := json.Unmarshal([]byte(jsonData), &v); err != nil {
+			return err
+		}
+
+		for _, item := range v.Items {
+			yamlData, err := x.YamlMarshal(item)
+			if err != nil {
+				return err
+			}
+
+			item = export(item)
+
+			yamlData, err = x.YamlMarshal(item)
+			if err != nil {
+				return err
+			}
+
+			metadata := item["metadata"].(map[string]interface{})
+			escaped := fmt.Sprintf("%s.%s", metadata["name"], strings.ToLower(item["kind"].(string)))
+			manifest += manifest + fmt.Sprintf("\n---\n# Source: helm-x-dummy-chart/templates/%s.yaml\n", escaped) + string(yamlData)
+		}
+	}
+
+	if manifest == "" {
+		return fmt.Errorf("no resources to be adopted")
+	}
+
+	if err := storage.AdoptRelease(release, ns, manifest); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func export(item map[string]interface{}) map[string]interface{} {
@@ -739,6 +755,7 @@ func commonFlags(f *pflag.FlagSet) *commonOpts {
 	f.StringArrayVarP(&u.valueFiles, "values", "f", []string{}, "specify values in a YAML file or a URL (can specify multiple)")
 	f.StringArrayVar(&u.values, "set", []string{}, "set values on the command line (can specify multiple)")
 	f.StringVar(&u.namespace, "namespace", "", "namespace to install the release into (only used if --install is set). Defaults to the current kube config namespace")
+	f.StringVar(&u.tillerNs, "tiller-namespace", "kube-system", "namespace to in which release configmap/secret objects reside")
 	f.StringVar(&u.version, "version", "", "specify the exact chart version to use. If this is not specified, the latest version is used")
 	f.StringVar(&u.kubeContext, "kubecontext", "", "name of the kubeconfig context to use")
 
