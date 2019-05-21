@@ -213,6 +213,16 @@ $ ./helm-x apply myapp examples/manifests/ --version 1.2.3 --debug
 * Not all flags present in the original `helm diff`, `helm template`, `helm upgrade` flags are implemented. If you need any other flags, please feel free to open issues and even submit pull requests.
 * If you are using the `--kube-context` flag, you need to change it to `--kubecontext`, since helm plugins [drop this flag](https://github.com/helm/helm/blob/master/docs/plugins.md#a-note-on-flag-parsing).
 
+## Prior Arts
+
+1. [Customizing Upstream Helm Charts with Kustomize | Testing Clouds at 128bpm](https://testingclouds.wordpress.com/2018/07/20/844/)
+
+  Relies on `helm template` to generate K8s manifests that `kustomize` can work on.
+  This method implies that you can't use `helm` for release management, as also explained in the original article as follows:
+  > First, Helm is no longer controlling releases of manifests into the cluster. This means that you cannot use helm rollback or helm list or any of the helm release related commands to manage your deployments.
+
+ `helm-x`, on the other hand, solves this issue by treating the final output of `kustomize` as a temporary Helm chart, and actually `helm-install` it. 
+
 ## Acknowledgements
 
 This project's implementation has been largely inspired from the awesome [helm-inject](https://github.com/maorfr/helm-inject) project maintained by @maorfr.
