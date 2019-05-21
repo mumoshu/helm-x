@@ -30,6 +30,14 @@ $ helm x diff myapp examples/kustomize --version 1.2.4 \
   -f examples/kustomize/values.2.yaml
 ```
 
+Add an adhoc dependency:
+
+```
+$ helm x diff myapp examples/kustomize --version 1.2.4 \
+  -f examples/kustomize/values.2.yaml \
+  --adohoc-dependency $ALIAS=stable/mysql:$CHART_VER
+```
+
 Check out the examples in the [examples](/examples) directory!
 
 ---

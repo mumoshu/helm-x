@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -149,6 +150,7 @@ type commonOpts struct {
 
 	injectors []string
 	injects   []string
+	adhocDeps []string
 }
 
 type clientOpts struct {
@@ -302,6 +304,7 @@ func chartify(dirOrChart string, u commonOpts) (string, error) {
 		}
 	}
 
+	var requirementsYamlContent string
 	if !isChart {
 		if u.version == "" {
 			return "", fmt.Errorf("--version is required when applying manifests")
@@ -310,7 +313,88 @@ func chartify(dirOrChart string, u commonOpts) (string, error) {
 		if err := ioutil.WriteFile(filepath.Join(tempDir, "Chart.yaml"), []byte(chartyaml), 0644); err != nil {
 			return "", err
 		}
+	} else {
+		bytes, err := ioutil.ReadFile(filepath.Join(tempDir, "requirements.yaml"))
+		if os.IsNotExist(err) {
+			requirementsYamlContent = `dependencies:`
+		} else if err != nil {
+			return "", err
+		} else {
+			requirementsYamlContent = string(bytes)
+		}
 	}
+
+	for _, d := range u.adhocDeps {
+		aliasChartVer := strings.Split(d, "=")
+		chartAndVer := strings.Split(aliasChartVer[len(aliasChartVer)-1], ":")
+		repoAndChart := strings.Split(chartAndVer[0], "/")
+		repo := repoAndChart[0]
+		chart := repoAndChart[1]
+		var ver string
+		if len(chartAndVer) == 1 {
+			ver = "*"
+		} else {
+			ver = chartAndVer[1]
+		}
+		var alias string
+		if len(aliasChartVer) == 1 {
+			alias = chart
+		} else {
+			alias = aliasChartVer[0]
+		}
+
+		var repoUrl string
+		out, err := x.RunCommand("helm", "repo", "list")
+		if err != nil {
+			return "", err
+		}
+		lines := strings.Split(out, "\n")
+		re := regexp.MustCompile(`\s+`)
+		for lineNum, line := range lines {
+			if lineNum == 0 {
+				continue
+			}
+			tokens := re.Split(line, -1)
+			if len(tokens) < 2 {
+				return "", fmt.Errorf("unexpected format of `helm repo list` at line %d \"%s\" in:\n%s", lineNum, line, out)
+			}
+			if tokens[0] == repo {
+				repoUrl = tokens[1]
+				break
+			}
+		}
+		if repoUrl == "" {
+			return "", fmt.Errorf("no helm list entry found for repository \"%s\"", repo)
+		}
+
+		requirementsYamlContent = requirementsYamlContent + fmt.Sprintf(`
+- name: %s
+  repository: %s
+  condition: %s.enabled
+  alias: %s
+`, chart, repoUrl, alias, alias)
+		requirementsYamlContent = requirementsYamlContent + fmt.Sprintf(`  version: "%s"
+`, ver)
+	}
+	if err := ioutil.WriteFile(filepath.Join(tempDir, "requirements.yaml"), []byte(requirementsYamlContent), 0644); err != nil {
+		return "", err
+	}
+
+	{
+		debugOut, err := ioutil.ReadFile(filepath.Join(tempDir, "requirements.yaml"))
+		if err != nil {
+			return "", err
+		}
+		klog.Infof("%s", debugOut)
+	}
+
+	{
+		_, err := x.RunCommand("helm", "dependency", "build", tempDir)
+		if err != nil {
+			return "", err
+		}
+	}
+
 	injectOptions := injectOptions{
 		injectors: u.injectors,
 		injects:   u.injects,
@@ -756,6 +840,7 @@ func commonFlags(f *pflag.FlagSet) *commonOpts {
 
 	f.StringArrayVar(&u.injectors, "injector", []string{}, "DEPRECATED: Use `--inject \"CMD ARG1 ARG2\"` instead. injector to use (must be pre-installed) and flags to be passed in the syntax of `'CMD SUBCMD,FLAG1=VAL1,FLAG2=VAL2'`. Flags should be without leading \"--\" (can specify multiple). \"FILE\" in values are replaced with the Kubernetes manifest file being injected. Example: \"--injector 'istioctl kube-inject f=FILE,injectConfigFile=inject-config.yaml,meshConfigFile=mesh.config.yaml\"")
 	f.StringArrayVar(&u.injects, "inject", []string{}, "injector to use (must be pre-installed) and flags to be passed in the syntax of `'istioctl kube-inject -f FILE'`. \"FILE\" is replaced with the Kubernetes manifest file being injected")
+	f.StringArrayVar(&u.adhocDeps, "adhoc-dependency", []string{}, "Adhoc dependencies to be added to the temporary local helm chart being installed. Syntax: ALIAS=REPO/CHART:VERSION e.g. mydb=stable/mysql:1.2.3")
 
 	f.StringArrayVarP(&u.valueFiles, "values", "f", []string{}, "specify values in a YAML file or a URL (can specify multiple)")
 	f.StringArrayVar(&u.values, "set", []string{}, "set values on the command line (can specify multiple)")
