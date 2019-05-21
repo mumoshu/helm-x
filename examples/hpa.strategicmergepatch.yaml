@@ -1,0 +1,15 @@
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: myapp-podinfo
+  labels:
+    app: podinfo
+    chart: podinfo-2.0.1
+    release: myapp
+    heritage: Tiller
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1beta2
+    kind: Deployment
+    name: myapp-podinfo
+  minReplicas: 3

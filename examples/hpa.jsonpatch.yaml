@@ -1,0 +1,9 @@
+target:
+  group: autoscaling
+  version: v2beta1
+  kind: HorizontalPodAutoscaler
+  name: myapp-podinfo
+patch:
+- op: replace
+  path: /spec/maxReplicas
+  value: 1

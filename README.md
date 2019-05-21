@@ -38,6 +38,17 @@ $ helm x diff myapp examples/kustomize --version 1.2.4 \
   --adhoc-dependency $ALIAS=stable/mysql:$CHART_VER
 ```
 
+Apply JSON patches or Strategic-Merge patches to K8s resources being `helm install`ed:
+
+```
+# See examples/hpa.strategicmergepatch.yaml and examples/hpa.jsonpatch.yaml for examples
+$ helm x diff myapp examples/kustomize --version 1.2.4 \
+  -f examples/kustomize/values.2.yaml \
+  --adhoc-dependency $ALIAS=stable/mysql:$CHART_VER \
+  --strategic-merge-patch path/to/strategicmerge.patch.yaml \
+  --jsonpatch path/to/json.patch.yaml
+```
+
 Check out the examples in the [examples](/examples) directory!
 
 ---
@@ -63,7 +74,7 @@ If you're familiar with `helm`, what makes `helm-x` unique is it runs `helm upgr
 
 ## Usage
 
-### helm x apply
+### helm x upgrade(a.k.a helm x apply)
 
 Install or upgrade the helm release from the directory or the chart specified.
 
@@ -80,22 +91,29 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 
 ```console
 Usage:
-  x apply [RELEASE] [DIR_OR_CHART] [flags]
+  helm-x apply [RELEASE] [DIR_OR_CHART] [flags]
 
 Flags:
-      --debug                                         enable verbose output
-      --dry-run                                       simulate an upgrade
-  -h, --help                                          help for apply
-      --injector 'CMD SUBCMD,FLAG1=VAL1,FLAG2=VAL2'   injector to use (must be pre-installed) and flags to be passed in the syntax of 'CMD SUBCMD,FLAG1=VAL1,FLAG2=VAL2'. Flags should be without leading "--" (can specify multiple). "FILE" in values are replaced with the Kubernetes manifest file being injected. Example: "--injector 'istioctl kube-inject f=FILE,injectConfigFile=inject-config.yaml,meshConfigFile=mesh.config.yaml"
-      --kubecontext string                            name of the kubeconfig context to use
-      --namespace string                              namespace to install the release into (only used if --install is set). Defaults to the current kube config namespace
-      --set stringArray                               set values on the command line (can specify multiple)
-      --timeout int                                   time in seconds to wait for any individual Kubernetes operation (like Jobs for hooks) (default 300)
-      --tls                                           enable TLS for request
-      --tls-cert string                               path to TLS certificate file (default: $HELM_HOME/cert.pem)
-      --tls-key string                                path to TLS key file (default: $HELM_HOME/key.pem)
-  -f, --values stringArray                            specify values in a YAML file or a URL (can specify multiple)
-      --version string                                specify the exact chart version to use. If this is not specified, the latest version is used
+      --adhoc-dependency stringArray            Adhoc dependencies to be added to the temporary local helm chart being installed. Syntax: ALIAS=REPO/CHART:VERSION e.g. mydb=stable/mysql:1.2.3
+      --adopt strings                           adopt existing k8s resources before apply
+      --debug                                   enable verbose output
+      --dry-run                                 simulate an upgrade
+  -h, --help                                    help for apply
+      --inject 'istioctl kube-inject -f FILE'   injector to use (must be pre-installed) and flags to be passed in the syntax of 'istioctl kube-inject -f FILE'. "FILE" is replaced with the Kubernetes manifest file being injected
+      --injector --inject "CMD ARG1 ARG2"       DEPRECATED: Use --inject "CMD ARG1 ARG2" instead. injector to use (must be pre-installed) and flags to be passed in the syntax of `'CMD SUBCMD,FLAG1=VAL1,FLAG2=VAL2'`. Flags should be without leading "--" (can specify multiple). "FILE" in values are replaced with the Kubernetes manifest file being injected. Example: "--injector 'istioctl kube-inject f=FILE,injectConfigFile=inject-config.yaml,meshConfigFile=mesh.config.yaml"
+      --install                                 install the release if missing (default true)
+      --json-patch stringArray                  Kustomize JSON Patch file to be applied to the rendered K8s manifests. Allows customizing your chart without forking or updating
+      --kubecontext string                      name of the kubeconfig context to use
+      --namespace string                        namespace to install the release into (only used if --install is set). Defaults to the current kube config namespace
+      --set stringArray                         set values on the command line (can specify multiple)
+      --strategic-merge-patch stringArray       Kustomize Strategic Merge Patch file to be applied to the rendered K8s manifests. Allows customizing your chart without forking or updating
+      --tiller-namespace string                 namespace to in which release configmap/secret objects reside (default "kube-system")
+      --timeout int                             time in seconds to wait for any individual Kubernetes operation (like Jobs for hooks) (default 300)
+      --tls                                     enable TLS for request
+      --tls-cert string                         path to TLS certificate file (default: $HELM_HOME/cert.pem)
+      --tls-key string                          path to TLS key file (default: $HELM_HOME/key.pem)
+  -f, --values stringArray                      specify values in a YAML file or a URL (can specify multiple)
+      --version string                          specify the exact chart version to use. If this is not specified, the latest version is used
 ```
 
 ### helm x diff
@@ -112,20 +130,25 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 
 ```console
 Usage:
-  x diff [RELEASE] [DIR_OR_CHART] [flags]
+  helm-x diff [RELEASE] [DIR_OR_CHART] [flags]
 
 Flags:
-      --debug                                         enable verbose output
-  -h, --help                                          help for diff
-      --injector 'CMD SUBCMD,FLAG1=VAL1,FLAG2=VAL2'   injector to use (must be pre-installed) and flags to be passed in the syntax of 'CMD SUBCMD,FLAG1=VAL1,FLAG2=VAL2'. Flags should be without leading "--" (can specify multiple). "FILE" in values are replaced with the Kubernetes manifest file being injected. Example: "--injector 'istioctl kube-inject f=FILE,injectConfigFile=inject-config.yaml,meshConfigFile=mesh.config.yaml"
-      --kubecontext string                            name of the kubeconfig context to use
-      --namespace string                              namespace to install the release into (only used if --install is set). Defaults to the current kube config namespace
-      --set stringArray                               set values on the command line (can specify multiple)
-      --tls                                           enable TLS for request
-      --tls-cert string                               path to TLS certificate file (default: $HELM_HOME/cert.pem)
-      --tls-key string                                path to TLS key file (default: $HELM_HOME/key.pem)
-  -f, --values stringArray                            specify values in a YAML file or a URL (can specify multiple)
-      --version string                                specify the exact chart version to use. If this is not specified, the latest version is used
+      --adhoc-dependency stringArray            Adhoc dependencies to be added to the temporary local helm chart being installed. Syntax: ALIAS=REPO/CHART:VERSION e.g. mydb=stable/mysql:1.2.3
+      --debug                                   enable verbose output
+  -h, --help                                    help for diff
+      --inject 'istioctl kube-inject -f FILE'   injector to use (must be pre-installed) and flags to be passed in the syntax of 'istioctl kube-inject -f FILE'. "FILE" is replaced with the Kubernetes manifest file being injected
+      --injector --inject "CMD ARG1 ARG2"       DEPRECATED: Use --inject "CMD ARG1 ARG2" instead. injector to use (must be pre-installed) and flags to be passed in the syntax of `'CMD SUBCMD,FLAG1=VAL1,FLAG2=VAL2'`. Flags should be without leading "--" (can specify multiple). "FILE" in values are replaced with the Kubernetes manifest file being injected. Example: "--injector 'istioctl kube-inject f=FILE,injectConfigFile=inject-config.yaml,meshConfigFile=mesh.config.yaml"
+      --json-patch stringArray                  Kustomize JSON Patch file to be applied to the rendered K8s manifests. Allows customizing your chart without forking or updating
+      --kubecontext string                      name of the kubeconfig context to use
+      --namespace string                        namespace to install the release into (only used if --install is set). Defaults to the current kube config namespace
+      --set stringArray                         set values on the command line (can specify multiple)
+      --strategic-merge-patch stringArray       Kustomize Strategic Merge Patch file to be applied to the rendered K8s manifests. Allows customizing your chart without forking or updating
+      --tiller-namespace string                 namespace to in which release configmap/secret objects reside (default "kube-system")
+      --tls                                     enable TLS for request
+      --tls-cert string                         path to TLS certificate file (default: $HELM_HOME/cert.pem)
+      --tls-key string                          path to TLS key file (default: $HELM_HOME/key.pem)
+  -f, --values stringArray                      specify values in a YAML file or a URL (can specify multiple)
+      --version string                          specify the exact chart version to use. If this is not specified, the latest version is used
 ```
 
 ### helm x template
@@ -142,18 +165,25 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 
 ```console
 Usage:
-  x template [DIR_OR_CHART] [flags]
+  helm-x template [DIR_OR_CHART] [flags]
 
 Flags:
-      --debug                                         enable verbose output
-  -h, --help                                          help for template
-      --injector 'CMD SUBCMD,FLAG1=VAL1,FLAG2=VAL2'   injector to use (must be pre-installed) and flags to be passed in the syntax of 'CMD SUBCMD,FLAG1=VAL1,FLAG2=VAL2'. Flags should be without leading "--" (can specify multiple). "FILE" in values are replaced with the Kubernetes manifest file being injected. Example: "--injector 'istioctl kube-inject f=FILE,injectConfigFile=inject-config.yaml,meshConfigFile=mesh.config.yaml"
-      --kubecontext string                            name of the kubeconfig context to use
-      --name string                                   release name (default "release-name") (default "release-name")
-      --namespace string                              namespace to install the release into (only used if --install is set). Defaults to the current kube config namespace
-      --set stringArray                               set values on the command line (can specify multiple)
-  -f, --values stringArray                            specify values in a YAML file or a URL (can specify multiple)
-      --version string                                specify the exact chart version to use. If this is not specified, the latest version is used
+      --adhoc-dependency stringArray            Adhoc dependencies to be added to the temporary local helm chart being installed. Syntax: ALIAS=REPO/CHART:VERSION e.g. mydb=stable/mysql:1.2.3
+      --as-release helm [upgrade|install]       turn the result into a proper helm release, by removing hooks from the manifest, and including a helm release configmap/secret that should otherwise created by helm [upgrade|install]
+      --debug                                   enable verbose output
+  -h, --help                                    help for template
+      --inject 'istioctl kube-inject -f FILE'   injector to use (must be pre-installed) and flags to be passed in the syntax of 'istioctl kube-inject -f FILE'. "FILE" is replaced with the Kubernetes manifest file being injected
+      --injector --inject "CMD ARG1 ARG2"       DEPRECATED: Use --inject "CMD ARG1 ARG2" instead. injector to use (must be pre-installed) and flags to be passed in the syntax of `'CMD SUBCMD,FLAG1=VAL1,FLAG2=VAL2'`. Flags should be without leading "--" (can specify multiple). "FILE" in values are replaced with the Kubernetes manifest file being injected. Example: "--injector 'istioctl kube-inject f=FILE,injectConfigFile=inject-config.yaml,meshConfigFile=mesh.config.yaml"
+      --json-patch stringArray                  Kustomize JSON Patch file to be applied to the rendered K8s manifests. Allows customizing your chart without forking or updating
+      --kubecontext string                      name of the kubeconfig context to use
+      --name string                             release name (default "release-name") (default "release-name")
+      --namespace string                        namespace to install the release into (only used if --install is set). Defaults to the current kube config namespace
+      --set stringArray                         set values on the command line (can specify multiple)
+      --strategic-merge-patch stringArray       Kustomize Strategic Merge Patch file to be applied to the rendered K8s manifests. Allows customizing your chart without forking or updating
+      --tiller-namespace string                 namespace to in which release configmap/secret objects reside (default "kube-system")
+      --tiller-namsepace string                 namespace in which release confgimap/secret objects reside (default "kube-system")
+  -f, --values stringArray                      specify values in a YAML file or a URL (can specify multiple)
+      --version string                          specify the exact chart version to use. If this is not specified, the latest version is used
 ```
 
 ### helm x adopt

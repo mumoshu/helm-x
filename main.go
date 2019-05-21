@@ -148,9 +148,12 @@ type commonOpts struct {
 	kubeContext string
 	tillerNs    string
 
-	injectors []string
-	injects   []string
-	adhocDeps []string
+	injectors   []string
+	injects     []string
+	adhocDeps   []string
+	jsonPatches []string
+
+	strategicMergePatches []string
 }
 
 type clientOpts struct {
@@ -320,6 +323,13 @@ func chartify(dirOrChart string, u commonOpts) (string, error) {
 		} else if err != nil {
 			return "", err
 		} else {
+			parsed := map[string]interface{}{}
+			if err := yaml.Unmarshal(bytes, &parsed); err != nil {
+				return "", err
+			}
+			if _, ok := parsed["dependencies"]; !ok {
+				bytes = []byte(`dependencies:`)
+			}
 			requirementsYamlContent = string(bytes)
 		}
 	}
@@ -376,6 +386,7 @@ func chartify(dirOrChart string, u commonOpts) (string, error) {
 		requirementsYamlContent = requirementsYamlContent + fmt.Sprintf(`  version: "%s"
 `, ver)
 	}
+
 	if err := ioutil.WriteFile(filepath.Join(tempDir, "requirements.yaml"), []byte(requirementsYamlContent), 0644); err != nil {
 		return "", err
 	}
@@ -385,13 +396,174 @@ func chartify(dirOrChart string, u commonOpts) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		klog.Infof("%s", debugOut)
+		klog.Infof("using requirements.yaml:\n%s", debugOut)
 	}
 
 	{
 		_, err := x.RunCommand("helm", "dependency", "build", tempDir)
 		if err != nil {
 			return "", err
+		}
+
+		matches, err := filepath.Glob(filepath.Join(tempDir, "charts", "*-*.tgz"))
+		if err != nil {
+			return "", err
+		}
+
+		for _, match := range matches {
+			chartsDir := filepath.Join(tempDir, "charts")
+
+			klog.Infof("unarchiving subchart %s to %s", match, chartsDir)
+			subchartDir, err := untarUnderDir(match, chartsDir)
+			if err != nil {
+				return "", fmt.Errorf("fetchAndUntarUnderDir: %v", err)
+			}
+
+			templateFileOptions := fileOptions{
+				basePath:     subchartDir,
+				matchSubPath: "templates",
+				fileType:     "yaml",
+			}
+			templateFiles, err := getFilesToActOn(templateFileOptions)
+			if err != nil {
+				return "", err
+			}
+
+			templateOptions := templateOptions{
+				files:       templateFiles,
+				chart:       subchartDir,
+				name:        u.release,
+				namespace:   u.namespace,
+				values:      u.values,
+				valuesFiles: u.valueFiles,
+			}
+			if err := template(templateOptions); err != nil {
+				return "", err
+			}
+
+			generatedManifestFiles = append([]string{}, templateFiles...)
+		}
+
+		_ = os.Remove(filepath.Join(tempDir, "requirements.yaml"))
+		_ = os.Remove(filepath.Join(tempDir, "requirements.lock"))
+	}
+
+	{
+		if isChart && (len(u.jsonPatches) > 0 || len(u.strategicMergePatches) > 0) {
+			kustomizationYamlContent := `kind: ""
+apiversion: ""
+resources:
+`
+			for _, f := range generatedManifestFiles {
+				f = strings.Replace(f, tempDir+"/", "", 1)
+				kustomizationYamlContent += `- ` + f + "\n"
+			}
+
+			if len(u.jsonPatches) > 0 {
+				kustomizationYamlContent += `patchesJson6902:
+`
+				for i, f := range u.jsonPatches {
+					fileBytes, err := ioutil.ReadFile(f)
+					if err != nil {
+						return "", err
+					}
+
+					type jsonPatch struct {
+						Target map[string]string        `yaml:"target"`
+						Patch  []map[string]interface{} `yaml:"patch"`
+						Path   string                   `yaml:"path"`
+					}
+					patch := jsonPatch{}
+					if err := yaml.Unmarshal(fileBytes, &patch); err != nil {
+						return "", err
+					}
+
+					buf := &bytes.Buffer{}
+					encoder := yaml.NewEncoder(buf)
+					encoder.SetIndent(2)
+					if err := encoder.Encode(map[string]interface{}{"target": patch.Target}); err != nil {
+						return "", err
+					}
+					targetBytes := buf.Bytes()
+
+					for i, line := range strings.Split(string(targetBytes), "\n") {
+						if i == 0 {
+							line = "- " + line
+						} else {
+							line = "  " + line
+						}
+						kustomizationYamlContent += line + "\n"
+					}
+
+					var path string
+					if patch.Path != "" {
+						path = patch.Path
+					} else if len(patch.Patch) > 0 {
+						buf := &bytes.Buffer{}
+						encoder := yaml.NewEncoder(buf)
+						encoder.SetIndent(2)
+						err := encoder.Encode(patch.Patch)
+						if err != nil {
+							return "", err
+						}
+						jsonPatchData := buf.Bytes()
+						path = filepath.Join("jsonpatches", fmt.Sprintf("patch.%d.yaml", i))
+						abspath := filepath.Join(tempDir, path)
+						if err := os.Mkdir(filepath.Dir(abspath), 0755); err != nil {
+							return "", err
+						}
+						klog.Infof("%s:\n%s", path, jsonPatchData)
+						if err := ioutil.WriteFile(abspath, jsonPatchData, 0644); err != nil {
+							return "", err
+						}
+					} else {
+						return "", fmt.Errorf("either \"path\" or \"patch\" must be set in %s", f)
+					}
+					kustomizationYamlContent += "  path: " + path + "\n"
+				}
+			}
+
+			if len(u.strategicMergePatches) > 0 {
+				kustomizationYamlContent += `patchesStrategicMerge:
+`
+				for i, f := range u.strategicMergePatches {
+					bytes, err := ioutil.ReadFile(f)
+					if err != nil {
+						return "", err
+					}
+					path := filepath.Join("strategicmergepatches", fmt.Sprintf("patch.%d.yaml", i))
+					abspath := filepath.Join(tempDir, path)
+					if err := os.Mkdir(filepath.Dir(abspath), 0755); err != nil {
+						return "", err
+					}
+					if err := ioutil.WriteFile(abspath, bytes, 0644); err != nil {
+						return "", err
+					}
+					kustomizationYamlContent += `- ` + path + "\n"
+				}
+			}
+
+			if err := ioutil.WriteFile(filepath.Join(tempDir, "kustomization.yaml"), []byte(kustomizationYamlContent), 0644); err != nil {
+				return "", err
+			}
+
+			klog.Infof("generated and using kustomization.yaml:\n%s", kustomizationYamlContent)
+
+			renderedFile := filepath.Join(tempDir, "templates/rendered.yaml")
+			klog.Infof("generating %s", renderedFile)
+			_, err := x.RunCommand("kustomize", "build", tempDir, "--output", renderedFile)
+			if err != nil {
+				return "", err
+			}
+
+			for _, f := range generatedManifestFiles {
+				klog.Infof("removing %s", f)
+				if err := os.Remove(f); err != nil {
+					return "", err
+				}
+			}
+
+			generatedManifestFiles = []string{renderedFile}
 		}
 	}
 
@@ -841,6 +1013,8 @@ func commonFlags(f *pflag.FlagSet) *commonOpts {
 	f.StringArrayVar(&u.injectors, "injector", []string{}, "DEPRECATED: Use `--inject \"CMD ARG1 ARG2\"` instead. injector to use (must be pre-installed) and flags to be passed in the syntax of `'CMD SUBCMD,FLAG1=VAL1,FLAG2=VAL2'`. Flags should be without leading \"--\" (can specify multiple). \"FILE\" in values are replaced with the Kubernetes manifest file being injected. Example: \"--injector 'istioctl kube-inject f=FILE,injectConfigFile=inject-config.yaml,meshConfigFile=mesh.config.yaml\"")
 	f.StringArrayVar(&u.injects, "inject", []string{}, "injector to use (must be pre-installed) and flags to be passed in the syntax of `'istioctl kube-inject -f FILE'`. \"FILE\" is replaced with the Kubernetes manifest file being injected")
 	f.StringArrayVar(&u.adhocDeps, "adhoc-dependency", []string{}, "Adhoc dependencies to be added to the temporary local helm chart being installed. Syntax: ALIAS=REPO/CHART:VERSION e.g. mydb=stable/mysql:1.2.3")
+	f.StringArrayVar(&u.jsonPatches, "json-patch", []string{}, "Kustomize JSON Patch file to be applied to the rendered K8s manifests. Allows customizing your chart without forking or updating")
+	f.StringArrayVar(&u.strategicMergePatches, "strategic-merge-patch", []string{}, "Kustomize Strategic Merge Patch file to be applied to the rendered K8s manifests. Allows customizing your chart without forking or updating")
 
 	f.StringArrayVarP(&u.valueFiles, "values", "f", []string{}, "specify values in a YAML file or a URL (can specify multiple)")
 	f.StringArrayVar(&u.values, "set", []string{}, "set values on the command line (can specify multiple)")
@@ -873,26 +1047,52 @@ func copyToTempDir(path string) (string, error) {
 		return "", err
 	}
 	if !exists {
-		command := fmt.Sprintf("helm fetch %s --untar -d %s", path, tempDir)
-		_, stderr, err := Capture(command)
-		if err != nil || len(stderr) != 0 {
-			return "", fmt.Errorf(string(stderr))
-		}
-		files, err := ioutil.ReadDir(tempDir)
-		if err != nil {
-			return "", err
-		}
-		if len(files) != 1 {
-			return "", fmt.Errorf("%d additional files found in temp direcotry. This is very strange", len(files)-1)
-		}
-		tempDir = filepath.Join(tempDir, files[0].Name())
-	} else {
-		err = copy.Copy(path, tempDir)
-		if err != nil {
-			return "", err
-		}
+		return fetchAndUntarUnderDir(path, tempDir)
+	}
+	err = copy.Copy(path, tempDir)
+	if err != nil {
+		return "", err
 	}
 	return tempDir, nil
+}
+
+func fetchAndUntarUnderDir(path, tempDir string) (string, error) {
+	command := fmt.Sprintf("helm fetch %s --untar -d %s", path, tempDir)
+	_, stderr, err := Capture(command)
+	if err != nil || len(stderr) != 0 {
+		return "", fmt.Errorf(string(stderr))
+	}
+	files, err := ioutil.ReadDir(tempDir)
+	if err != nil {
+		return "", err
+	}
+	if len(files) != 1 {
+		return "", fmt.Errorf("%d additional files found in temp direcotry. This is very strange", len(files)-1)
+	}
+	return filepath.Join(tempDir, files[0].Name()), nil
+}
+
+func untarUnderDir(path, tempDir string) (string, error) {
+	command := fmt.Sprintf("tar -zxvf %s -C %s", path, tempDir)
+	_, stderr, err := Capture(command)
+	if err != nil {
+		return "", fmt.Errorf("%v: %s", err, string(stderr))
+	}
+	if err := os.Remove(path); err != nil {
+		return "", err
+	}
+	files, err := ioutil.ReadDir(tempDir)
+	if err != nil {
+		return "", err
+	}
+	if len(files) != 1 {
+		fs := []string{}
+		for _, f := range files {
+			fs = append(fs, f.Name())
+		}
+		return "", fmt.Errorf("%d additional files found in temp direcotry. This is very strange:\n%s", len(files)-1, strings.Join(fs, "\n"))
+	}
+	return filepath.Join(tempDir, files[0].Name()), nil
 }
 
 type fileOptions struct {
