@@ -26,7 +26,7 @@ type KustomizeOpts struct {
 	Images     []KustomizeImage `yaml:"images"`
 	NamePrefix string           `yaml:"namePrefix"`
 	NameSuffix string           `yaml:"nameSuffix"`
-	Namespace  string           `yaml:"Namespace"`
+	Namespace  string           `yaml:"namespace"`
 }
 
 type KustomizeImage struct {
@@ -50,23 +50,6 @@ func (img KustomizeImage) String() string {
 	return res
 }
 
-type ApplyOpts struct {
-	*ChartifyOpts
-
-	chart   string
-	DryRun  bool
-	Install bool
-	Timeout int
-
-	TLS     bool
-	TLSCert string
-	TLSKey  string
-
-	Adopt []string
-
-	Out io.Writer
-}
-
 type TemplateOpts struct {
 	*ChartifyOpts
 
@@ -79,7 +62,8 @@ type TemplateOpts struct {
 type AdoptOpts struct {
 	*ClientOpts
 
-	Namespace string
+	Namespace       string
+	TillerNamespace string
 
 	Out io.Writer
 }
@@ -103,10 +87,6 @@ type ChartifyOpts struct {
 	// ChartVersion is the semver of the Helm chart being used to render the original K8s manifests before various tweaks applied by helm-x
 	ChartVersion string
 
-	// KubeContext is the
-	// TODO: This isn't actually an option for chartify. Move to elsewhere!
-	KubeContext string
-
 	// TillerNamespace is the namespace Tiller or Helm v3 creates "release" objects(configmaps or secrets depending on the storage backend chosen)
 	TillerNamespace string
 
@@ -121,11 +101,10 @@ type ChartifyOpts struct {
 }
 
 type ClientOpts struct {
-	KubeContext     string
-	TillerNamespace string
-	TLS             bool
-	TLSCert         string
-	TLSKey          string
+	KubeContext string
+	TLS         bool
+	TLSCert     string
+	TLSKey      string
 }
 
 // Chartify creates a temporary Helm chart from a directory or a remote chart, and applies various transformations.
@@ -240,7 +219,7 @@ func Chartify(dirOrChart string, u ChartifyOpts) (string, error) {
 			}
 		}
 		if kustomizeOpts.Namespace != "" {
-			_, err := RunCommand("kustomize", "edit", "set", "Namespace", kustomizeOpts.Namespace)
+			_, err := RunCommand("kustomize", "edit", "set", "namespace", kustomizeOpts.Namespace)
 			if err != nil {
 				return "", err
 			}
@@ -758,7 +737,7 @@ func template(o templateOptions) error {
 	}
 	additionalFlags += createFlagChain("f", o.valuesFiles)
 	if o.namespace != "" {
-		additionalFlags += createFlagChain("Namespace", []string{o.namespace})
+		additionalFlags += createFlagChain("namespace", []string{o.namespace})
 	}
 
 	for _, file := range o.files {
@@ -831,20 +810,19 @@ func Inject(o InjectOpts) error {
 }
 
 type UpgradeOpts struct {
-	Chart       string
-	ReleaseName string
-	SetValues   []string
-	ValuesFiles []string
-	Namespace   string
-	KubeContext string
-	Timeout     int
-	Install     bool
-	DryRun      bool
-	Debug       bool
-	TLS         bool
-	TLSCert     string
-	TLSKey      string
-	kubeConfig  string
+	*ChartifyOpts
+	*ClientOpts
+
+	Chart   string
+	Timeout int
+	Install bool
+	DryRun  bool
+
+	kubeConfig string
+
+	Adopt []string
+
+	Out io.Writer
 }
 
 func Upgrade(o UpgradeOpts) error {
@@ -856,7 +834,7 @@ func Upgrade(o UpgradeOpts) error {
 		additionalFlags += createFlagChain("install", []string{""})
 	}
 	if o.Namespace != "" {
-		additionalFlags += createFlagChain("Namespace", []string{o.Namespace})
+		additionalFlags += createFlagChain("namespace", []string{o.Namespace})
 	}
 	if o.KubeContext != "" {
 		additionalFlags += createFlagChain("kube-context", []string{o.KubeContext})
@@ -887,24 +865,21 @@ func Upgrade(o UpgradeOpts) error {
 	return nil
 }
 
-func Template(chart string, o TemplateOpts) error {
+func Template(chart string, templateOpts TemplateOpts) error {
 	var additionalFlags string
-	additionalFlags += createFlagChain("set", o.SetValues)
-	additionalFlags += createFlagChain("f", o.ValuesFiles)
-	if o.Namespace != "" {
-		additionalFlags += createFlagChain("Namespace", []string{o.Namespace})
+	additionalFlags += createFlagChain("set", templateOpts.SetValues)
+	additionalFlags += createFlagChain("f", templateOpts.ValuesFiles)
+	if templateOpts.Namespace != "" {
+		additionalFlags += createFlagChain("namespace", []string{templateOpts.Namespace})
 	}
-	if o.KubeContext != "" {
-		additionalFlags += createFlagChain("kube-context", []string{o.KubeContext})
+	if templateOpts.ReleaseName != "" {
+		additionalFlags += createFlagChain("name", []string{templateOpts.ReleaseName})
 	}
-	if o.ReleaseName != "" {
-		additionalFlags += createFlagChain("name", []string{o.ReleaseName})
-	}
-	if o.Debug {
+	if templateOpts.Debug {
 		additionalFlags += createFlagChain("debug", []string{""})
 	}
-	if o.ChartVersion != "" {
-		additionalFlags += createFlagChain("--version", []string{o.ChartVersion})
+	if templateOpts.ChartVersion != "" {
+		additionalFlags += createFlagChain("--version", []string{templateOpts.ChartVersion})
 	}
 
 	command := fmt.Sprintf("helm template %s%s", chart, additionalFlags)
@@ -915,24 +890,24 @@ func Template(chart string, o TemplateOpts) error {
 
 	var output string
 
-	if o.IncludeReleaseConfigmap || o.IncludeReleaseSecret {
+	if templateOpts.IncludeReleaseConfigmap || templateOpts.IncludeReleaseSecret {
 		repoNameAndChart := strings.Split(chart, "/")
 
 		chartWithoutRepoName := repoNameAndChart[len(repoNameAndChart)-1]
 
-		ver := o.ChartVersion
+		ver := templateOpts.ChartVersion
 
 		releaseManifests := []ReleaseManifest{}
 
-		if o.IncludeReleaseConfigmap {
+		if templateOpts.IncludeReleaseConfigmap {
 			releaseManifests = append(releaseManifests, ReleaseToConfigMap)
 		}
 
-		if o.IncludeReleaseSecret {
+		if templateOpts.IncludeReleaseSecret {
 			releaseManifests = append(releaseManifests, ReleaseToSecret)
 		}
 
-		output, err = TurnHelmTemplateToInstall(chartWithoutRepoName, ver, o.TillerNamespace, o.ReleaseName, o.Namespace, string(stdout), releaseManifests...)
+		output, err = TurnHelmTemplateToInstall(chartWithoutRepoName, ver, templateOpts.TillerNamespace, templateOpts.ReleaseName, templateOpts.Namespace, string(stdout), releaseManifests...)
 		if err != nil {
 			return err
 		}
@@ -947,17 +922,11 @@ func Template(chart string, o TemplateOpts) error {
 
 type DiffOpts struct {
 	*ChartifyOpts
+	*ClientOpts
 
-	Chart       string
-	ReleaseName string
-	SetValues   []string
-	ValuesFiles []string
-	Namespace   string
-	KubeContext string
-	TLS         bool
-	TLSCert     string
-	TLSKey      string
-	kubeConfig  string
+	Chart string
+
+	kubeConfig string
 
 	Out io.Writer
 }
@@ -972,7 +941,7 @@ func Diff(o DiffOpts) error {
 	additionalFlags += createFlagChain("reset-values", []string{""})
 	additionalFlags += createFlagChain("suppress-secrets", []string{""})
 	if o.Namespace != "" {
-		additionalFlags += createFlagChain("Namespace", []string{o.Namespace})
+		additionalFlags += createFlagChain("namespace", []string{o.Namespace})
 	}
 	if o.KubeContext != "" {
 		additionalFlags += createFlagChain("kube-context", []string{o.KubeContext})

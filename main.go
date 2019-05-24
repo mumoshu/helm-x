@@ -50,12 +50,14 @@ func NewRootCmd() *cobra.Command {
 type dumpCmd struct {
 	*x.ClientOpts
 
+	TillerNamespace string
+
 	Out io.Writer
 }
 
 // NewApplyCommand represents the apply command
 func NewApplyCommand(out io.Writer, cmdName string, installByDefault bool) *cobra.Command {
-	applyOpts := &x.ApplyOpts{Out: out}
+	upOpts := &x.UpgradeOpts{Out: out}
 
 	cmd := &cobra.Command{
 		Use:   fmt.Sprintf("%s [RELEASE] [DIR_OR_CHART]", cmdName),
@@ -83,42 +85,28 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 			release := args[0]
 			dir := args[1]
 
-			applyOpts.ReleaseName = release
-			tempDir, err := x.Chartify(dir, *applyOpts.ChartifyOpts)
+			upOpts.ReleaseName = release
+			tempDir, err := x.Chartify(dir, *upOpts.ChartifyOpts)
 			if err != nil {
 				cmd.SilenceUsage = true
 				return err
 			}
 
-			if !applyOpts.Debug {
+			if !upOpts.Debug {
 				defer os.RemoveAll(tempDir)
 			} else {
 				klog.Infof("helm chart has been written to %s for you to see. please remove it afterwards", tempDir)
 			}
 
-			updateOpts := x.UpgradeOpts{
-				Chart:       tempDir,
-				ReleaseName: release,
-				Install:     applyOpts.Install,
-				SetValues:   applyOpts.SetValues,
-				ValuesFiles: applyOpts.ValuesFiles,
-				Namespace:   applyOpts.Namespace,
-				KubeContext: applyOpts.KubeContext,
-				Timeout:     applyOpts.Timeout,
-				DryRun:      applyOpts.DryRun,
-				Debug:       applyOpts.Debug,
-				TLS:         applyOpts.TLS,
-				TLSCert:     applyOpts.TLSCert,
-				TLSKey:      applyOpts.TLSKey,
-			}
+			upOpts.Chart = tempDir
 
-			if len(applyOpts.Adopt) > 0 {
-				if err := x.Adopt(applyOpts.TillerNamespace, release, applyOpts.Namespace, applyOpts.Adopt); err != nil {
+			if len(upOpts.Adopt) > 0 {
+				if err := x.Adopt(upOpts.TillerNamespace, release, upOpts.Namespace, upOpts.Adopt); err != nil {
 					return err
 				}
 			}
 
-			if err := x.Upgrade(updateOpts); err != nil {
+			if err := x.Upgrade(*upOpts); err != nil {
 				cmd.SilenceUsage = true
 				return err
 			}
@@ -128,20 +116,20 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 	}
 	f := cmd.Flags()
 
-	applyOpts.ChartifyOpts = chartifyOptsFromFlags(f)
+	upOpts.ChartifyOpts = chartifyOptsFromFlags(f)
 
 	//f.StringVar(&u.release, "name", "", "release name (default \"release-name\")")
-	f.IntVar(&applyOpts.Timeout, "timeout", 300, "time in seconds to wait for any individual Kubernetes operation (like Jobs for hooks)")
+	f.IntVar(&upOpts.Timeout, "timeout", 300, "time in seconds to wait for any individual Kubernetes operation (like Jobs for hooks)")
 
-	f.BoolVar(&applyOpts.DryRun, "dry-run", false, "simulate an upgrade")
+	f.BoolVar(&upOpts.DryRun, "dry-run", false, "simulate an upgrade")
 
-	f.BoolVar(&applyOpts.Install, "install", installByDefault, "install the release if missing")
+	f.BoolVar(&upOpts.Install, "install", installByDefault, "install the release if missing")
 
-	f.BoolVar(&applyOpts.TLS, "tls", false, "enable TLS for request")
-	f.StringVar(&applyOpts.TLSCert, "tls-cert", "", "path to TLS certificate file (default: $HELM_HOME/cert.pem)")
-	f.StringVar(&applyOpts.TLSKey, "tls-key", "", "path to TLS key file (default: $HELM_HOME/key.pem)")
+	f.BoolVar(&upOpts.TLS, "tls", false, "enable TLS for request")
+	f.StringVar(&upOpts.TLSCert, "tls-cert", "", "path to TLS certificate file (default: $HELM_HOME/cert.pem)")
+	f.StringVar(&upOpts.TLSKey, "tls-key", "", "path to TLS key file (default: $HELM_HOME/key.pem)")
 
-	f.StringSliceVarP(&applyOpts.Adopt, "adopt", "", []string{}, "adopt existing k8s resources before apply")
+	f.StringSliceVarP(&upOpts.Adopt, "adopt", "", []string{}, "adopt existing k8s resources before apply")
 
 	return cmd
 }
@@ -298,14 +286,14 @@ So that the full command looks like:
 
 	adoptOpts.ClientOpts = clientOptsFromFlags(f)
 
-	f.StringVar(&adoptOpts.Namespace, "Namespace", "", "The Namespace in which the resources to be adopted reside")
+	f.StringVar(&adoptOpts.Namespace, "namespace", "", "The Namespace in which the resources to be adopted reside")
 
 	return cmd
 }
 
 // NewDiffCommand represents the diff command
 func NewUtilDumpRelease(out io.Writer) *cobra.Command {
-	u := &dumpCmd{Out: out}
+	dumpOpts := &dumpCmd{Out: out}
 
 	cmd := &cobra.Command{
 		Use:   "dump [RELEASE]",
@@ -318,7 +306,7 @@ func NewUtilDumpRelease(out io.Writer) *cobra.Command {
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			release := args[0]
-			storage, err := x.NewConfigMapsStorage(u.TillerNamespace)
+			storage, err := x.NewConfigMapsStorage(dumpOpts.TillerNamespace)
 			if err != nil {
 				return err
 			}
@@ -349,38 +337,36 @@ func NewUtilDumpRelease(out io.Writer) *cobra.Command {
 	}
 	f := cmd.Flags()
 
-	u.ClientOpts = clientOptsFromFlags(f)
+	dumpOpts.ClientOpts = clientOptsFromFlags(f)
 
 	return cmd
 }
 
 func chartifyOptsFromFlags(f *pflag.FlagSet) *x.ChartifyOpts {
-	u := &x.ChartifyOpts{}
+	chartifyOpts := &x.ChartifyOpts{}
 
-	f.StringArrayVar(&u.Injectors, "injector", []string{}, "DEPRECATED: Use `--inject \"CMD ARG1 ARG2\"` instead. injector to use (must be pre-installed) and flags to be passed in the syntax of `'CMD SUBCMD,FLAG1=VAL1,FLAG2=VAL2'`. Flags should be without leading \"--\" (can specify multiple). \"FILE\" in values are replaced with the Kubernetes manifest file being injected. Example: \"--injector 'istioctl kube-inject f=FILE,injectConfigFile=inject-config.yaml,meshConfigFile=mesh.config.yaml\"")
-	f.StringArrayVar(&u.Injects, "inject", []string{}, "injector to use (must be pre-installed) and flags to be passed in the syntax of `'istioctl kube-inject -f FILE'`. \"FILE\" is replaced with the Kubernetes manifest file being injected")
-	f.StringArrayVar(&u.AdhocChartDependencies, "adhoc-dependency", []string{}, "Adhoc dependencies to be added to the temporary local helm chart being installed. Syntax: ALIAS=REPO/CHART:VERSION e.g. mydb=stable/mysql:1.2.3")
-	f.StringArrayVar(&u.JsonPatches, "json-patch", []string{}, "Kustomize JSON Patch file to be applied to the rendered K8s manifests. Allows customizing your chart without forking or updating")
-	f.StringArrayVar(&u.StrategicMergePatches, "strategic-merge-patch", []string{}, "Kustomize Strategic Merge Patch file to be applied to the rendered K8s manifests. Allows customizing your chart without forking or updating")
+	f.StringArrayVar(&chartifyOpts.Injectors, "injector", []string{}, "DEPRECATED: Use `--inject \"CMD ARG1 ARG2\"` instead. injector to use (must be pre-installed) and flags to be passed in the syntax of `'CMD SUBCMD,FLAG1=VAL1,FLAG2=VAL2'`. Flags should be without leading \"--\" (can specify multiple). \"FILE\" in values are replaced with the Kubernetes manifest file being injected. Example: \"--injector 'istioctl kube-inject f=FILE,injectConfigFile=inject-config.yaml,meshConfigFile=mesh.config.yaml\"")
+	f.StringArrayVar(&chartifyOpts.Injects, "inject", []string{}, "injector to use (must be pre-installed) and flags to be passed in the syntax of `'istioctl kube-inject -f FILE'`. \"FILE\" is replaced with the Kubernetes manifest file being injected")
+	f.StringArrayVar(&chartifyOpts.AdhocChartDependencies, "adhoc-dependency", []string{}, "Adhoc dependencies to be added to the temporary local helm chart being installed. Syntax: ALIAS=REPO/CHART:VERSION e.g. mydb=stable/mysql:1.2.3")
+	f.StringArrayVar(&chartifyOpts.JsonPatches, "json-patch", []string{}, "Kustomize JSON Patch file to be applied to the rendered K8s manifests. Allows customizing your chart without forking or updating")
+	f.StringArrayVar(&chartifyOpts.StrategicMergePatches, "strategic-merge-patch", []string{}, "Kustomize Strategic Merge Patch file to be applied to the rendered K8s manifests. Allows customizing your chart without forking or updating")
 
-	f.StringArrayVarP(&u.ValuesFiles, "values", "f", []string{}, "specify values in a YAML file or a URL (can specify multiple)")
-	f.StringArrayVar(&u.SetValues, "set", []string{}, "set values on the command line (can specify multiple)")
-	f.StringVar(&u.Namespace, "Namespace", "", "Namespace to install the release into (only used if --install is set). Defaults to the current kube config Namespace")
-	f.StringVar(&u.TillerNamespace, "tiller-Namespace", "kube-system", "Namespace to in which release configmap/secret objects reside")
-	f.StringVar(&u.ChartVersion, "version", "", "specify the exact chart version to use. If this is not specified, the latest version is used")
-	f.StringVar(&u.KubeContext, "kubecontext", "", "name of the kubeconfig context to use")
+	f.StringArrayVarP(&chartifyOpts.ValuesFiles, "values", "f", []string{}, "specify values in a YAML file or a URL (can specify multiple)")
+	f.StringArrayVar(&chartifyOpts.SetValues, "set", []string{}, "set values on the command line (can specify multiple)")
+	f.StringVar(&chartifyOpts.Namespace, "namespace", "", "Namespace to install the release into (only used if --install is set). Defaults to the current kube config Namespace")
+	f.StringVar(&chartifyOpts.TillerNamespace, "tiller-namespace", "kube-system", "Namespace to in which release configmap/secret objects reside")
+	f.StringVar(&chartifyOpts.ChartVersion, "version", "", "specify the exact chart version to use. If this is not specified, the latest version is used")
 
-	f.BoolVar(&u.Debug, "debug", false, "enable verbose output")
+	f.BoolVar(&chartifyOpts.Debug, "debug", false, "enable verbose output")
 
-	return u
+	return chartifyOpts
 }
 
 func clientOptsFromFlags(f *pflag.FlagSet) *x.ClientOpts {
-	u := &x.ClientOpts{}
-	f.BoolVar(&u.TLS, "tls", false, "enable TLS for request")
-	f.StringVar(&u.TLSCert, "tls-cert", "", "path to TLS certificate file (default: $HELM_HOME/cert.pem)")
-	f.StringVar(&u.TLSKey, "tls-key", "", "path to TLS key file (default: $HELM_HOME/key.pem)")
-	f.StringVar(&u.KubeContext, "kubecontext", "", "the kubeconfig context to use")
-	f.StringVar(&u.TillerNamespace, "tiller-Namespace", "kube-system", "the tiller namespaceto use")
-	return u
+	clientOpts := &x.ClientOpts{}
+	f.BoolVar(&clientOpts.TLS, "tls", false, "enable TLS for request")
+	f.StringVar(&clientOpts.TLSCert, "tls-cert", "", "path to TLS certificate file (default: $HELM_HOME/cert.pem)")
+	f.StringVar(&clientOpts.TLSKey, "tls-key", "", "path to TLS key file (default: $HELM_HOME/key.pem)")
+	f.StringVar(&clientOpts.KubeContext, "kubecontext", "", "the kubeconfig context to use")
+	return clientOpts
 }
