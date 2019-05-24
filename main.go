@@ -107,7 +107,7 @@ type templateCmd struct {
 
 	chart string
 
-	asRelease bool
+	includeReleaseConfigmap bool
 
 	out io.Writer
 }
@@ -717,9 +717,10 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 				namespace:   u.namespace,
 				kubeContext: u.kubeContext,
 				debug:       u.debug,
-				asRelease:   u.asRelease,
 				tillerNs:    u.tillerNs,
 				version:     u.version,
+
+				includeReleaseConfigmap: u.includeReleaseConfigmap,
 			}
 			if err := runTemplate(opts); err != nil {
 				cmd.SilenceUsage = true
@@ -735,7 +736,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 
 	f.StringVar(&u.release, "name", "release-name", "release name (default \"release-name\")")
 	f.StringVar(&u.tillerNs, "tiller-namsepace", "kube-system", "namespace in which release confgimap/secret objects reside")
-	f.BoolVar(&u.asRelease, "as-release", false, "turn the result into a proper helm release, by removing hooks from the manifest, and including a helm release configmap/secret that should otherwise created by `helm [upgrade|install]`")
+	f.BoolVar(&u.includeReleaseConfigmap, "include-release-configmap", false, "turn the result into a proper helm release, by removing hooks from the manifest, and including a helm release configmap/secret that should otherwise created by `helm [upgrade|install]`")
 
 	return cmd
 }
@@ -1290,9 +1291,10 @@ type runTemplateOptions struct {
 	tlsKey      string
 	kubeConfig  string
 
-	tillerNs  string
-	version   string
-	asRelease bool
+	tillerNs string
+	version  string
+
+	includeReleaseConfigmap bool
 }
 
 func runTemplate(o runTemplateOptions) error {
@@ -1333,7 +1335,7 @@ func runTemplate(o runTemplateOptions) error {
 
 	var output string
 
-	if o.asRelease {
+	if o.includeReleaseConfigmap {
 		repoNameAndChart := strings.Split(o.chart, "/")
 
 		chartWithoutRepoName := repoNameAndChart[len(repoNameAndChart)-1]
