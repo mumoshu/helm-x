@@ -86,7 +86,7 @@ func (img KustomizeImage) String() string {
 }
 
 type applyCmd struct {
-	*commonOpts
+	*ChartifyOpts
 
 	chart   string
 	dryRun  bool
@@ -103,7 +103,7 @@ type applyCmd struct {
 }
 
 type templateCmd struct {
-	*commonOpts
+	*ChartifyOpts
 
 	chart string
 
@@ -113,7 +113,7 @@ type templateCmd struct {
 }
 
 type diffCmd struct {
-	*commonOpts
+	*ChartifyOpts
 
 	chart string
 
@@ -138,22 +138,40 @@ type adoptCmd struct {
 	out io.Writer
 }
 
-type commonOpts struct {
-	debug       bool
-	release     string
-	valueFiles  []string
-	values      []string
-	namespace   string
-	version     string
-	kubeContext string
-	tillerNs    string
+type ChartifyOpts struct {
+	// Debug when set to true passes `--debug` flag to `helm` in order to enable debug logging
+	Debug bool
 
-	injectors   []string
-	injects     []string
-	adhocDeps   []string
-	jsonPatches []string
+	// ReleaseName is the name of Helm release being installed
+	ReleaseName string
 
-	strategicMergePatches []string
+	// ValuesFiles are a list of Helm chart values files
+	ValuesFiles []string
+
+	// SetValues is a list of adhoc Helm chart values being passed via helm's `--set` flags
+	SetValues []string
+
+	// Namespace is the default namespace in which the K8s manifests rendered by the chart are associated
+	Namespace string
+
+	// ChartVersion is the semver of the Helm chart being used to render the original K8s manifests before various tweaks applied by helm-x
+	ChartVersion string
+
+	// KubeContext is the
+	// TODO: This isn't actually an option for chartify. Move to elsewhere!
+	KubeContext string
+
+	// TillerNamespace is the namespace Tiller or Helm v3 creates "release" objects(configmaps or secrets depending on the storage backend chosen)
+	TillerNamespace string
+
+	Injectors []string
+	Injects   []string
+
+	AdhocChartDependencies []string
+
+	JsonPatches []string
+
+	StrategicMergePatches []string
 }
 
 type clientOpts struct {
@@ -164,7 +182,9 @@ type clientOpts struct {
 	tlsKey      string
 }
 
-func chartify(dirOrChart string, u commonOpts) (string, error) {
+// Chartify creates a temporary Helm chart from a directory or a remote chart, and applies various transformations.
+// Returns the full path to the temporary directory containing the generated chart if succeeded.
+func Chartify(dirOrChart string, u ChartifyOpts) (string, error) {
 	tempDir, err := copyToTempDir(dirOrChart)
 	if err != nil {
 		return "", err
@@ -191,10 +211,10 @@ func chartify(dirOrChart string, u commonOpts) (string, error) {
 		templateOptions := templateOptions{
 			files:       templateFiles,
 			chart:       tempDir,
-			name:        u.release,
-			namespace:   u.namespace,
-			values:      u.values,
-			valuesFiles: u.valueFiles,
+			name:        u.ReleaseName,
+			namespace:   u.Namespace,
+			values:      u.SetValues,
+			valuesFiles: u.ValuesFiles,
 		}
 		if err := template(templateOptions); err != nil {
 			return "", err
@@ -222,7 +242,7 @@ func chartify(dirOrChart string, u commonOpts) (string, error) {
 	if isKustomization {
 		kustomizeOpts := KustomizeOpts{}
 
-		for _, f := range u.valueFiles {
+		for _, f := range u.ValuesFiles {
 			valsFileContent, err := ioutil.ReadFile(f)
 			if err != nil {
 				return "", err
@@ -232,7 +252,7 @@ func chartify(dirOrChart string, u commonOpts) (string, error) {
 			}
 		}
 
-		if len(u.values) > 0 {
+		if len(u.SetValues) > 0 {
 			panic("--set is not yet supported for kustomize-based apps! Use -f/--values flag instead.")
 		}
 
@@ -309,10 +329,10 @@ func chartify(dirOrChart string, u commonOpts) (string, error) {
 
 	var requirementsYamlContent string
 	if !isChart {
-		if u.version == "" {
+		if u.ChartVersion == "" {
 			return "", fmt.Errorf("--version is required when applying manifests")
 		}
-		chartyaml := fmt.Sprintf("name: \"%s\"\nversion: %s\nappVersion: %s\n", u.release, u.version, u.version)
+		chartyaml := fmt.Sprintf("name: \"%s\"\nversion: %s\nappVersion: %s\n", u.ReleaseName, u.ChartVersion, u.ChartVersion)
 		if err := ioutil.WriteFile(filepath.Join(tempDir, "Chart.yaml"), []byte(chartyaml), 0644); err != nil {
 			return "", err
 		}
@@ -334,7 +354,7 @@ func chartify(dirOrChart string, u commonOpts) (string, error) {
 		}
 	}
 
-	for _, d := range u.adhocDeps {
+	for _, d := range u.AdhocChartDependencies {
 		aliasChartVer := strings.Split(d, "=")
 		chartAndVer := strings.Split(aliasChartVer[len(aliasChartVer)-1], ":")
 		repoAndChart := strings.Split(chartAndVer[0], "/")
@@ -432,10 +452,10 @@ func chartify(dirOrChart string, u commonOpts) (string, error) {
 			templateOptions := templateOptions{
 				files:       templateFiles,
 				chart:       subchartDir,
-				name:        u.release,
-				namespace:   u.namespace,
-				values:      u.values,
-				valuesFiles: u.valueFiles,
+				name:        u.ReleaseName,
+				namespace:   u.Namespace,
+				values:      u.SetValues,
+				valuesFiles: u.ValuesFiles,
 			}
 			if err := template(templateOptions); err != nil {
 				return "", err
@@ -449,7 +469,7 @@ func chartify(dirOrChart string, u commonOpts) (string, error) {
 	}
 
 	{
-		if isChart && (len(u.jsonPatches) > 0 || len(u.strategicMergePatches) > 0) {
+		if isChart && (len(u.JsonPatches) > 0 || len(u.StrategicMergePatches) > 0) {
 			kustomizationYamlContent := `kind: ""
 apiversion: ""
 resources:
@@ -459,10 +479,10 @@ resources:
 				kustomizationYamlContent += `- ` + f + "\n"
 			}
 
-			if len(u.jsonPatches) > 0 {
+			if len(u.JsonPatches) > 0 {
 				kustomizationYamlContent += `patchesJson6902:
 `
-				for i, f := range u.jsonPatches {
+				for i, f := range u.JsonPatches {
 					fileBytes, err := ioutil.ReadFile(f)
 					if err != nil {
 						return "", err
@@ -523,10 +543,10 @@ resources:
 				}
 			}
 
-			if len(u.strategicMergePatches) > 0 {
+			if len(u.StrategicMergePatches) > 0 {
 				kustomizationYamlContent += `patchesStrategicMerge:
 `
-				for i, f := range u.strategicMergePatches {
+				for i, f := range u.StrategicMergePatches {
 					bytes, err := ioutil.ReadFile(f)
 					if err != nil {
 						return "", err
@@ -568,8 +588,8 @@ resources:
 	}
 
 	injectOptions := injectOptions{
-		injectors: u.injectors,
-		injects:   u.injects,
+		injectors: u.Injectors,
+		injects:   u.Injects,
 		files:     generatedManifestFiles,
 	}
 	if err := inject(injectOptions); err != nil {
@@ -609,14 +629,14 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 			release := args[0]
 			dir := args[1]
 
-			u.release = release
-			tempDir, err := chartify(dir, *u.commonOpts)
+			u.ReleaseName = release
+			tempDir, err := Chartify(dir, *u.ChartifyOpts)
 			if err != nil {
 				cmd.SilenceUsage = true
 				return err
 			}
 
-			if !u.debug {
+			if !u.Debug {
 				defer os.RemoveAll(tempDir)
 			} else {
 				klog.Infof("helm chart has been written to %s for you to see. please remove it afterwards", tempDir)
@@ -626,20 +646,20 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 				chart:       tempDir,
 				name:        release,
 				install:     u.install,
-				values:      u.values,
-				valuesFiles: u.valueFiles,
-				namespace:   u.namespace,
-				kubeContext: u.kubeContext,
+				values:      u.SetValues,
+				valuesFiles: u.ValuesFiles,
+				namespace:   u.Namespace,
+				kubeContext: u.KubeContext,
 				timeout:     u.timeout,
 				dryRun:      u.dryRun,
-				debug:       u.debug,
+				debug:       u.Debug,
 				tls:         u.tls,
 				tlsCert:     u.tlsCert,
 				tlsKey:      u.tlsKey,
 			}
 
 			if len(u.adopt) > 0 {
-				if err := adopt(u.tillerNs, release, u.namespace, u.adopt); err != nil {
+				if err := adopt(u.TillerNamespace, release, u.Namespace, u.adopt); err != nil {
 					return err
 				}
 			}
@@ -654,7 +674,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 	}
 	f := cmd.Flags()
 
-	u.commonOpts = commonFlags(f)
+	u.ChartifyOpts = commonFlags(f)
 
 	//f.StringVar(&u.release, "name", "", "release name (default \"release-name\")")
 	f.IntVar(&u.timeout, "timeout", 300, "time in seconds to wait for any individual Kubernetes operation (like Jobs for hooks)")
@@ -698,27 +718,27 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 		RunE: func(cmd *cobra.Command, args []string) error {
 			dir := args[0]
 
-			tempDir, err := chartify(dir, *u.commonOpts)
+			tempDir, err := Chartify(dir, *u.ChartifyOpts)
 			if err != nil {
 				cmd.SilenceUsage = true
 				return err
 			}
 
-			if !u.debug {
+			if !u.Debug {
 				klog.Infof("helm chart has been written to %s for you to see. please remove it afterwards", tempDir)
 				defer os.RemoveAll(tempDir)
 			}
 
 			opts := runTemplateOptions{
 				chart:       tempDir,
-				name:        u.release,
-				values:      u.values,
-				valuesFiles: u.valueFiles,
-				namespace:   u.namespace,
-				kubeContext: u.kubeContext,
-				debug:       u.debug,
-				tillerNs:    u.tillerNs,
-				version:     u.version,
+				name:        u.ReleaseName,
+				values:      u.SetValues,
+				valuesFiles: u.ValuesFiles,
+				namespace:   u.Namespace,
+				kubeContext: u.KubeContext,
+				debug:       u.Debug,
+				tillerNs:    u.TillerNamespace,
+				version:     u.ChartVersion,
 
 				includeReleaseConfigmap: u.includeReleaseConfigmap,
 			}
@@ -732,10 +752,10 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 	}
 	f := cmd.Flags()
 
-	u.commonOpts = commonFlags(f)
+	u.ChartifyOpts = commonFlags(f)
 
-	f.StringVar(&u.release, "name", "release-name", "release name (default \"release-name\")")
-	f.StringVar(&u.tillerNs, "tiller-namsepace", "kube-system", "namespace in which release confgimap/secret objects reside")
+	f.StringVar(&u.ReleaseName, "name", "release-name", "release name (default \"release-name\")")
+	f.StringVar(&u.TillerNamespace, "tiller-namsepace", "kube-system", "namespace in which release confgimap/secret objects reside")
 	f.BoolVar(&u.includeReleaseConfigmap, "include-release-configmap", false, "turn the result into a proper helm release, by removing hooks from the manifest, and including a helm release configmap/secret that should otherwise created by `helm [upgrade|install]`")
 
 	return cmd
@@ -768,14 +788,14 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 			release := args[0]
 			dir := args[1]
 
-			u.release = release
-			tempDir, err := chartify(dir, *u.commonOpts)
+			u.ReleaseName = release
+			tempDir, err := Chartify(dir, *u.ChartifyOpts)
 			if err != nil {
 				cmd.SilenceUsage = true
 				return err
 			}
 
-			if !u.debug {
+			if !u.Debug {
 				klog.Infof("helm chart has been written to %s for you to see. please remove it afterwards", tempDir)
 				defer os.RemoveAll(tempDir)
 			}
@@ -783,10 +803,10 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 			diffOptions := diffOptions{
 				chart:       tempDir,
 				name:        release,
-				values:      u.values,
-				valuesFiles: u.valueFiles,
-				namespace:   u.namespace,
-				kubeContext: u.kubeContext,
+				values:      u.SetValues,
+				valuesFiles: u.ValuesFiles,
+				namespace:   u.Namespace,
+				kubeContext: u.KubeContext,
 				tls:         u.tls,
 				tlsCert:     u.tlsCert,
 				tlsKey:      u.tlsKey,
@@ -801,7 +821,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 	}
 	f := cmd.Flags()
 
-	u.commonOpts = commonFlags(f)
+	u.ChartifyOpts = commonFlags(f)
 
 	//f.StringVar(&u.release, "name", "", "release name (default \"release-name\")")
 
@@ -1008,23 +1028,23 @@ func NewUtilDumpRelease(out io.Writer) *cobra.Command {
 	return cmd
 }
 
-func commonFlags(f *pflag.FlagSet) *commonOpts {
-	u := &commonOpts{}
+func commonFlags(f *pflag.FlagSet) *ChartifyOpts {
+	u := &ChartifyOpts{}
 
-	f.StringArrayVar(&u.injectors, "injector", []string{}, "DEPRECATED: Use `--inject \"CMD ARG1 ARG2\"` instead. injector to use (must be pre-installed) and flags to be passed in the syntax of `'CMD SUBCMD,FLAG1=VAL1,FLAG2=VAL2'`. Flags should be without leading \"--\" (can specify multiple). \"FILE\" in values are replaced with the Kubernetes manifest file being injected. Example: \"--injector 'istioctl kube-inject f=FILE,injectConfigFile=inject-config.yaml,meshConfigFile=mesh.config.yaml\"")
-	f.StringArrayVar(&u.injects, "inject", []string{}, "injector to use (must be pre-installed) and flags to be passed in the syntax of `'istioctl kube-inject -f FILE'`. \"FILE\" is replaced with the Kubernetes manifest file being injected")
-	f.StringArrayVar(&u.adhocDeps, "adhoc-dependency", []string{}, "Adhoc dependencies to be added to the temporary local helm chart being installed. Syntax: ALIAS=REPO/CHART:VERSION e.g. mydb=stable/mysql:1.2.3")
-	f.StringArrayVar(&u.jsonPatches, "json-patch", []string{}, "Kustomize JSON Patch file to be applied to the rendered K8s manifests. Allows customizing your chart without forking or updating")
-	f.StringArrayVar(&u.strategicMergePatches, "strategic-merge-patch", []string{}, "Kustomize Strategic Merge Patch file to be applied to the rendered K8s manifests. Allows customizing your chart without forking or updating")
+	f.StringArrayVar(&u.Injectors, "injector", []string{}, "DEPRECATED: Use `--inject \"CMD ARG1 ARG2\"` instead. injector to use (must be pre-installed) and flags to be passed in the syntax of `'CMD SUBCMD,FLAG1=VAL1,FLAG2=VAL2'`. Flags should be without leading \"--\" (can specify multiple). \"FILE\" in values are replaced with the Kubernetes manifest file being injected. Example: \"--injector 'istioctl kube-inject f=FILE,injectConfigFile=inject-config.yaml,meshConfigFile=mesh.config.yaml\"")
+	f.StringArrayVar(&u.Injects, "inject", []string{}, "injector to use (must be pre-installed) and flags to be passed in the syntax of `'istioctl kube-inject -f FILE'`. \"FILE\" is replaced with the Kubernetes manifest file being injected")
+	f.StringArrayVar(&u.AdhocChartDependencies, "adhoc-dependency", []string{}, "Adhoc dependencies to be added to the temporary local helm chart being installed. Syntax: ALIAS=REPO/CHART:VERSION e.g. mydb=stable/mysql:1.2.3")
+	f.StringArrayVar(&u.JsonPatches, "json-patch", []string{}, "Kustomize JSON Patch file to be applied to the rendered K8s manifests. Allows customizing your chart without forking or updating")
+	f.StringArrayVar(&u.StrategicMergePatches, "strategic-merge-patch", []string{}, "Kustomize Strategic Merge Patch file to be applied to the rendered K8s manifests. Allows customizing your chart without forking or updating")
 
-	f.StringArrayVarP(&u.valueFiles, "values", "f", []string{}, "specify values in a YAML file or a URL (can specify multiple)")
-	f.StringArrayVar(&u.values, "set", []string{}, "set values on the command line (can specify multiple)")
-	f.StringVar(&u.namespace, "namespace", "", "namespace to install the release into (only used if --install is set). Defaults to the current kube config namespace")
-	f.StringVar(&u.tillerNs, "tiller-namespace", "kube-system", "namespace to in which release configmap/secret objects reside")
-	f.StringVar(&u.version, "version", "", "specify the exact chart version to use. If this is not specified, the latest version is used")
-	f.StringVar(&u.kubeContext, "kubecontext", "", "name of the kubeconfig context to use")
+	f.StringArrayVarP(&u.ValuesFiles, "values", "f", []string{}, "specify values in a YAML file or a URL (can specify multiple)")
+	f.StringArrayVar(&u.SetValues, "set", []string{}, "set values on the command line (can specify multiple)")
+	f.StringVar(&u.Namespace, "namespace", "", "namespace to install the release into (only used if --install is set). Defaults to the current kube config namespace")
+	f.StringVar(&u.TillerNamespace, "tiller-namespace", "kube-system", "namespace to in which release configmap/secret objects reside")
+	f.StringVar(&u.ChartVersion, "version", "", "specify the exact chart version to use. If this is not specified, the latest version is used")
+	f.StringVar(&u.KubeContext, "kubecontext", "", "name of the kubeconfig context to use")
 
-	f.BoolVar(&u.debug, "debug", false, "enable verbose output")
+	f.BoolVar(&u.Debug, "debug", false, "enable verbose output")
 
 	return u
 }
