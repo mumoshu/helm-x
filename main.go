@@ -117,6 +117,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 	f := cmd.Flags()
 
 	upOpts.ChartifyOpts = chartifyOptsFromFlags(f)
+	upOpts.ClientOpts = clientOptsFromFlags(f)
 
 	//f.StringVar(&u.release, "name", "", "release name (default \"release-name\")")
 	f.IntVar(&upOpts.Timeout, "timeout", 300, "time in seconds to wait for any individual Kubernetes operation (like Jobs for hooks)")
@@ -124,10 +125,6 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 	f.BoolVar(&upOpts.DryRun, "dry-run", false, "simulate an upgrade")
 
 	f.BoolVar(&upOpts.Install, "install", installByDefault, "install the release if missing")
-
-	f.BoolVar(&upOpts.TLS, "tls", false, "enable TLS for request")
-	f.StringVar(&upOpts.TLSCert, "tls-cert", "", "path to TLS certificate file (default: $HELM_HOME/cert.pem)")
-	f.StringVar(&upOpts.TLSKey, "tls-key", "", "path to TLS key file (default: $HELM_HOME/key.pem)")
 
 	f.StringSliceVarP(&upOpts.Adopt, "adopt", "", []string{}, "adopt existing k8s resources before apply")
 
@@ -185,7 +182,8 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 
 	f.StringVar(&templateOpts.ReleaseName, "name", "release-name", "release name (default \"release-name\")")
 	f.StringVar(&templateOpts.TillerNamespace, "tiller-namsepace", "kube-system", "Namespace in which release confgimap/secret objects reside")
-	f.BoolVar(&templateOpts.IncludeReleaseConfigmap, "include-release-configmap", false, "turn the result into a proper helm release, by removing hooks from the manifest, and including a helm release configmap/secret that should otherwise created by `helm [upgrade|install]`")
+	f.BoolVar(&templateOpts.IncludeReleaseConfigmap, "include-release-configmap", false, "turn the result into a proper helm release, by removing hooks from the manifest, and including a helm release configmap/secret that should otherwise created by \"helm [upgrade|install]\"")
+	f.BoolVar(&templateOpts.IncludeReleaseSecret, "include-release-secret", false, "turn the result into a proper helm release, by removing hooks from the manifest, and including a helm release configmap/secret that should otherwise created by \"helm [upgrade|install]\"")
 
 	return cmd
 }
@@ -242,12 +240,9 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 	f := cmd.Flags()
 
 	diffOpts.ChartifyOpts = chartifyOptsFromFlags(f)
+	diffOpts.ClientOpts = clientOptsFromFlags(f)
 
 	//f.StringVar(&u.release, "name", "", "release name (default \"release-name\")")
-
-	f.BoolVar(&diffOpts.TLS, "tls", false, "enable TLS for request")
-	f.StringVar(&diffOpts.TLSCert, "tls-cert", "", "path to TLS certificate file (default: $HELM_HOME/cert.pem)")
-	f.StringVar(&diffOpts.TLSKey, "tls-key", "", "path to TLS key file (default: $HELM_HOME/key.pem)")
 
 	return cmd
 }
