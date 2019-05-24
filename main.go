@@ -61,7 +61,7 @@ type KustomizeOpts struct {
 	Images     []KustomizeImage `yaml:"images"`
 	NamePrefix string           `yaml:"namePrefix"`
 	NameSuffix string           `yaml:"nameSuffix"`
-	Namespace  string           `yaml:"namespace"`
+	Namespace  string           `yaml:"Namespace"`
 }
 
 type KustomizeImage struct {
@@ -85,7 +85,7 @@ func (img KustomizeImage) String() string {
 	return res
 }
 
-type applyCmd struct {
+type ApplyOpts struct {
 	*ChartifyOpts
 
 	chart   string
@@ -102,36 +102,23 @@ type applyCmd struct {
 	out io.Writer
 }
 
-type templateCmd struct {
+type TemplateOpts struct {
 	*ChartifyOpts
 
-	chart string
-
-	includeReleaseConfigmap bool
-
-	out io.Writer
-}
-
-type diffCmd struct {
-	*ChartifyOpts
-
-	chart string
-
-	tls     bool
-	tlsCert string
-	tlsKey  string
+	IncludeReleaseConfigmap bool
+	IncludeReleaseSecret    bool
 
 	out io.Writer
 }
 
 type dumpCmd struct {
-	*clientOpts
+	*ClientOpts
 
 	out io.Writer
 }
 
 type adoptCmd struct {
-	*clientOpts
+	*ClientOpts
 
 	namespace string
 
@@ -174,10 +161,10 @@ type ChartifyOpts struct {
 	StrategicMergePatches []string
 }
 
-type clientOpts struct {
+type ClientOpts struct {
 	kubeContext string
 	tillerNs    string
-	tls         bool
+	TLS         bool
 	tlsCert     string
 	tlsKey      string
 }
@@ -294,7 +281,7 @@ func Chartify(dirOrChart string, u ChartifyOpts) (string, error) {
 			}
 		}
 		if kustomizeOpts.Namespace != "" {
-			_, err := x.RunCommand("kustomize", "edit", "set", "namespace", kustomizeOpts.Namespace)
+			_, err := x.RunCommand("kustomize", "edit", "set", "Namespace", kustomizeOpts.Namespace)
 			if err != nil {
 				return "", err
 			}
@@ -587,12 +574,12 @@ resources:
 		}
 	}
 
-	injectOptions := injectOptions{
+	injectOptions := InjectOpts{
 		injectors: u.Injectors,
 		injects:   u.Injects,
 		files:     generatedManifestFiles,
 	}
-	if err := inject(injectOptions); err != nil {
+	if err := Inject(injectOptions); err != nil {
 		return "", err
 	}
 
@@ -601,7 +588,7 @@ resources:
 
 // NewApplyCommand represents the apply command
 func NewApplyCommand(out io.Writer, cmdName string, installByDefault bool) *cobra.Command {
-	u := &applyCmd{out: out}
+	applyOpts := &ApplyOpts{out: out}
 
 	cmd := &cobra.Command{
 		Use:   fmt.Sprintf("%s [RELEASE] [DIR_OR_CHART]", cmdName),
@@ -629,42 +616,42 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 			release := args[0]
 			dir := args[1]
 
-			u.ReleaseName = release
-			tempDir, err := Chartify(dir, *u.ChartifyOpts)
+			applyOpts.ReleaseName = release
+			tempDir, err := Chartify(dir, *applyOpts.ChartifyOpts)
 			if err != nil {
 				cmd.SilenceUsage = true
 				return err
 			}
 
-			if !u.Debug {
+			if !applyOpts.Debug {
 				defer os.RemoveAll(tempDir)
 			} else {
 				klog.Infof("helm chart has been written to %s for you to see. please remove it afterwards", tempDir)
 			}
 
-			upgradeOptions := upgradeOptions{
-				chart:       tempDir,
-				name:        release,
-				install:     u.install,
-				values:      u.SetValues,
-				valuesFiles: u.ValuesFiles,
-				namespace:   u.Namespace,
-				kubeContext: u.KubeContext,
-				timeout:     u.timeout,
-				dryRun:      u.dryRun,
-				debug:       u.Debug,
-				tls:         u.tls,
-				tlsCert:     u.tlsCert,
-				tlsKey:      u.tlsKey,
+			updateOpts := UpgradeOpts{
+				Chart:       tempDir,
+				ReleaseName: release,
+				Install:     applyOpts.install,
+				SetValues:   applyOpts.SetValues,
+				ValuesFiles: applyOpts.ValuesFiles,
+				Namespace:   applyOpts.Namespace,
+				KubeContext: applyOpts.KubeContext,
+				Timeout:     applyOpts.timeout,
+				DryRun:      applyOpts.dryRun,
+				Debug:       applyOpts.Debug,
+				TLS:         applyOpts.tls,
+				TLSCert:     applyOpts.tlsCert,
+				TLSKey:      applyOpts.tlsKey,
 			}
 
-			if len(u.adopt) > 0 {
-				if err := adopt(u.TillerNamespace, release, u.Namespace, u.adopt); err != nil {
+			if len(applyOpts.adopt) > 0 {
+				if err := Adopt(applyOpts.TillerNamespace, release, applyOpts.Namespace, applyOpts.adopt); err != nil {
 					return err
 				}
 			}
 
-			if err := upgrade(upgradeOptions); err != nil {
+			if err := Upgrade(updateOpts); err != nil {
 				cmd.SilenceUsage = true
 				return err
 			}
@@ -674,27 +661,27 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 	}
 	f := cmd.Flags()
 
-	u.ChartifyOpts = commonFlags(f)
+	applyOpts.ChartifyOpts = chartifyOptsFromFlags(f)
 
 	//f.StringVar(&u.release, "name", "", "release name (default \"release-name\")")
-	f.IntVar(&u.timeout, "timeout", 300, "time in seconds to wait for any individual Kubernetes operation (like Jobs for hooks)")
+	f.IntVar(&applyOpts.timeout, "timeout", 300, "time in seconds to wait for any individual Kubernetes operation (like Jobs for hooks)")
 
-	f.BoolVar(&u.dryRun, "dry-run", false, "simulate an upgrade")
+	f.BoolVar(&applyOpts.dryRun, "dry-run", false, "simulate an upgrade")
 
-	f.BoolVar(&u.install, "install", installByDefault, "install the release if missing")
+	f.BoolVar(&applyOpts.install, "install", installByDefault, "install the release if missing")
 
-	f.BoolVar(&u.tls, "tls", false, "enable TLS for request")
-	f.StringVar(&u.tlsCert, "tls-cert", "", "path to TLS certificate file (default: $HELM_HOME/cert.pem)")
-	f.StringVar(&u.tlsKey, "tls-key", "", "path to TLS key file (default: $HELM_HOME/key.pem)")
+	f.BoolVar(&applyOpts.tls, "tls", false, "enable TLS for request")
+	f.StringVar(&applyOpts.tlsCert, "tls-cert", "", "path to TLS certificate file (default: $HELM_HOME/cert.pem)")
+	f.StringVar(&applyOpts.tlsKey, "tls-key", "", "path to TLS key file (default: $HELM_HOME/key.pem)")
 
-	f.StringSliceVarP(&u.adopt, "adopt", "", []string{}, "adopt existing k8s resources before apply")
+	f.StringSliceVarP(&applyOpts.adopt, "adopt", "", []string{}, "adopt existing k8s resources before apply")
 
 	return cmd
 }
 
 // NewTemplateCommand represents the template command
 func NewTemplateCommand(out io.Writer) *cobra.Command {
-	u := &templateCmd{out: out}
+	templateOpts := &TemplateOpts{out: out}
 
 	cmd := &cobra.Command{
 		Use:   "template [DIR_OR_CHART]",
@@ -718,31 +705,18 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 		RunE: func(cmd *cobra.Command, args []string) error {
 			dir := args[0]
 
-			tempDir, err := Chartify(dir, *u.ChartifyOpts)
+			tempDir, err := Chartify(dir, *templateOpts.ChartifyOpts)
 			if err != nil {
 				cmd.SilenceUsage = true
 				return err
 			}
 
-			if !u.Debug {
+			if !templateOpts.Debug {
 				klog.Infof("helm chart has been written to %s for you to see. please remove it afterwards", tempDir)
 				defer os.RemoveAll(tempDir)
 			}
 
-			opts := runTemplateOptions{
-				chart:       tempDir,
-				name:        u.ReleaseName,
-				values:      u.SetValues,
-				valuesFiles: u.ValuesFiles,
-				namespace:   u.Namespace,
-				kubeContext: u.KubeContext,
-				debug:       u.Debug,
-				tillerNs:    u.TillerNamespace,
-				version:     u.ChartVersion,
-
-				includeReleaseConfigmap: u.includeReleaseConfigmap,
-			}
-			if err := runTemplate(opts); err != nil {
+			if err := Template(tempDir, *templateOpts); err != nil {
 				cmd.SilenceUsage = true
 				return err
 			}
@@ -752,18 +726,18 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 	}
 	f := cmd.Flags()
 
-	u.ChartifyOpts = commonFlags(f)
+	templateOpts.ChartifyOpts = chartifyOptsFromFlags(f)
 
-	f.StringVar(&u.ReleaseName, "name", "release-name", "release name (default \"release-name\")")
-	f.StringVar(&u.TillerNamespace, "tiller-namsepace", "kube-system", "namespace in which release confgimap/secret objects reside")
-	f.BoolVar(&u.includeReleaseConfigmap, "include-release-configmap", false, "turn the result into a proper helm release, by removing hooks from the manifest, and including a helm release configmap/secret that should otherwise created by `helm [upgrade|install]`")
+	f.StringVar(&templateOpts.ReleaseName, "name", "release-name", "release name (default \"release-name\")")
+	f.StringVar(&templateOpts.TillerNamespace, "tiller-namsepace", "kube-system", "Namespace in which release confgimap/secret objects reside")
+	f.BoolVar(&templateOpts.IncludeReleaseConfigmap, "include-release-configmap", false, "turn the result into a proper helm release, by removing hooks from the manifest, and including a helm release configmap/secret that should otherwise created by `helm [upgrade|install]`")
 
 	return cmd
 }
 
 // NewDiffCommand represents the diff command
 func NewDiffCommand(out io.Writer) *cobra.Command {
-	u := &diffCmd{out: out}
+	diffOpts := &DiffOpts{out: out}
 
 	cmd := &cobra.Command{
 		Use:   "diff [RELEASE] [DIR_OR_CHART]",
@@ -788,30 +762,21 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 			release := args[0]
 			dir := args[1]
 
-			u.ReleaseName = release
-			tempDir, err := Chartify(dir, *u.ChartifyOpts)
+			diffOpts.ReleaseName = release
+			tempDir, err := Chartify(dir, *diffOpts.ChartifyOpts)
 			if err != nil {
 				cmd.SilenceUsage = true
 				return err
 			}
 
-			if !u.Debug {
+			if !diffOpts.Debug {
 				klog.Infof("helm chart has been written to %s for you to see. please remove it afterwards", tempDir)
 				defer os.RemoveAll(tempDir)
 			}
 
-			diffOptions := diffOptions{
-				chart:       tempDir,
-				name:        release,
-				values:      u.SetValues,
-				valuesFiles: u.ValuesFiles,
-				namespace:   u.Namespace,
-				kubeContext: u.KubeContext,
-				tls:         u.tls,
-				tlsCert:     u.tlsCert,
-				tlsKey:      u.tlsKey,
-			}
-			if err := diff(diffOptions); err != nil {
+			diffOpts.Chart = tempDir
+			diffOpts.ReleaseName = release
+			if err := diff(*diffOpts); err != nil {
 				cmd.SilenceUsage = true
 				return err
 			}
@@ -821,13 +786,13 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 	}
 	f := cmd.Flags()
 
-	u.ChartifyOpts = commonFlags(f)
+	diffOpts.ChartifyOpts = chartifyOptsFromFlags(f)
 
 	//f.StringVar(&u.release, "name", "", "release name (default \"release-name\")")
 
-	f.BoolVar(&u.tls, "tls", false, "enable TLS for request")
-	f.StringVar(&u.tlsCert, "tls-cert", "", "path to TLS certificate file (default: $HELM_HOME/cert.pem)")
-	f.StringVar(&u.tlsKey, "tls-key", "", "path to TLS key file (default: $HELM_HOME/key.pem)")
+	f.BoolVar(&diffOpts.TLS, "tls", false, "enable TLS for request")
+	f.StringVar(&diffOpts.TLSCert, "tls-cert", "", "path to TLS certificate file (default: $HELM_HOME/cert.pem)")
+	f.StringVar(&diffOpts.TLSKey, "tls-key", "", "path to TLS key file (default: $HELM_HOME/key.pem)")
 
 	return cmd
 }
@@ -859,19 +824,19 @@ So that the full command looks like:
 			tillerNs := u.tillerNs
 			resources := args[1:]
 
-			return adopt(tillerNs, release, u.namespace, resources)
+			return Adopt(tillerNs, release, u.namespace, resources)
 		},
 	}
 	f := cmd.Flags()
 
-	u.clientOpts = clientFlags(f)
+	u.ClientOpts = ClientOptsFromFlags(f)
 
-	f.StringVar(&u.namespace, "namespace", "", "The namespace in which the resources to be adopted reside")
+	f.StringVar(&u.namespace, "Namespace", "", "The Namespace in which the resources to be adopted reside")
 
 	return cmd
 }
 
-func adopt(tillerNs, release, namespace string, resources []string) error {
+func Adopt(tillerNs, release, namespace string, resources []string) error {
 	storage, err := x.NewConfigMapsStorage(tillerNs)
 	if err != nil {
 		return err
@@ -1023,12 +988,12 @@ func NewUtilDumpRelease(out io.Writer) *cobra.Command {
 	}
 	f := cmd.Flags()
 
-	u.clientOpts = clientFlags(f)
+	u.ClientOpts = ClientOptsFromFlags(f)
 
 	return cmd
 }
 
-func commonFlags(f *pflag.FlagSet) *ChartifyOpts {
+func chartifyOptsFromFlags(f *pflag.FlagSet) *ChartifyOpts {
 	u := &ChartifyOpts{}
 
 	f.StringArrayVar(&u.Injectors, "injector", []string{}, "DEPRECATED: Use `--inject \"CMD ARG1 ARG2\"` instead. injector to use (must be pre-installed) and flags to be passed in the syntax of `'CMD SUBCMD,FLAG1=VAL1,FLAG2=VAL2'`. Flags should be without leading \"--\" (can specify multiple). \"FILE\" in values are replaced with the Kubernetes manifest file being injected. Example: \"--injector 'istioctl kube-inject f=FILE,injectConfigFile=inject-config.yaml,meshConfigFile=mesh.config.yaml\"")
@@ -1039,8 +1004,8 @@ func commonFlags(f *pflag.FlagSet) *ChartifyOpts {
 
 	f.StringArrayVarP(&u.ValuesFiles, "values", "f", []string{}, "specify values in a YAML file or a URL (can specify multiple)")
 	f.StringArrayVar(&u.SetValues, "set", []string{}, "set values on the command line (can specify multiple)")
-	f.StringVar(&u.Namespace, "namespace", "", "namespace to install the release into (only used if --install is set). Defaults to the current kube config namespace")
-	f.StringVar(&u.TillerNamespace, "tiller-namespace", "kube-system", "namespace to in which release configmap/secret objects reside")
+	f.StringVar(&u.Namespace, "Namespace", "", "Namespace to install the release into (only used if --install is set). Defaults to the current kube config Namespace")
+	f.StringVar(&u.TillerNamespace, "tiller-Namespace", "kube-system", "Namespace to in which release configmap/secret objects reside")
 	f.StringVar(&u.ChartVersion, "version", "", "specify the exact chart version to use. If this is not specified, the latest version is used")
 	f.StringVar(&u.KubeContext, "kubecontext", "", "name of the kubeconfig context to use")
 
@@ -1049,13 +1014,13 @@ func commonFlags(f *pflag.FlagSet) *ChartifyOpts {
 	return u
 }
 
-func clientFlags(f *pflag.FlagSet) *clientOpts {
-	u := &clientOpts{}
-	f.BoolVar(&u.tls, "tls", false, "enable TLS for request")
+func ClientOptsFromFlags(f *pflag.FlagSet) *ClientOpts {
+	u := &ClientOpts{}
+	f.BoolVar(&u.TLS, "tls", false, "enable TLS for request")
 	f.StringVar(&u.tlsCert, "tls-cert", "", "path to TLS certificate file (default: $HELM_HOME/cert.pem)")
 	f.StringVar(&u.tlsKey, "tls-key", "", "path to TLS key file (default: $HELM_HOME/key.pem)")
 	f.StringVar(&u.kubeContext, "kubecontext", "", "the kubeconfig context to use")
-	f.StringVar(&u.tillerNs, "tiller-namespace", "kube-system", "the tiller namespaceto use")
+	f.StringVar(&u.tillerNs, "tiller-Namespace", "kube-system", "the tiller namespaceto use")
 	return u
 }
 
@@ -1166,7 +1131,7 @@ func template(o templateOptions) error {
 	}
 	additionalFlags += createFlagChain("f", o.valuesFiles)
 	if o.namespace != "" {
-		additionalFlags += createFlagChain("namespace", []string{o.namespace})
+		additionalFlags += createFlagChain("Namespace", []string{o.namespace})
 	}
 
 	for _, file := range o.files {
@@ -1183,13 +1148,13 @@ func template(o templateOptions) error {
 	return nil
 }
 
-type injectOptions struct {
+type InjectOpts struct {
 	injectors []string
 	injects   []string
 	files     []string
 }
 
-func inject(o injectOptions) error {
+func Inject(o InjectOpts) error {
 	var flagsTemplate string
 	for _, inj := range o.injectors {
 
@@ -1238,54 +1203,54 @@ func inject(o injectOptions) error {
 	return nil
 }
 
-type upgradeOptions struct {
-	chart       string
-	name        string
-	values      []string
-	valuesFiles []string
-	namespace   string
-	kubeContext string
-	timeout     int
-	install     bool
-	dryRun      bool
-	debug       bool
-	tls         bool
-	tlsCert     string
-	tlsKey      string
+type UpgradeOpts struct {
+	Chart       string
+	ReleaseName string
+	SetValues   []string
+	ValuesFiles []string
+	Namespace   string
+	KubeContext string
+	Timeout     int
+	Install     bool
+	DryRun      bool
+	Debug       bool
+	TLS         bool
+	TLSCert     string
+	TLSKey      string
 	kubeConfig  string
 }
 
-func upgrade(o upgradeOptions) error {
+func Upgrade(o UpgradeOpts) error {
 	var additionalFlags string
-	additionalFlags += createFlagChain("set", o.values)
-	additionalFlags += createFlagChain("f", o.valuesFiles)
-	additionalFlags += createFlagChain("timeout", []string{fmt.Sprintf("%d", o.timeout)})
-	if o.install {
+	additionalFlags += createFlagChain("set", o.SetValues)
+	additionalFlags += createFlagChain("f", o.ValuesFiles)
+	additionalFlags += createFlagChain("timeout", []string{fmt.Sprintf("%d", o.Timeout)})
+	if o.Install {
 		additionalFlags += createFlagChain("install", []string{""})
 	}
-	if o.namespace != "" {
-		additionalFlags += createFlagChain("namespace", []string{o.namespace})
+	if o.Namespace != "" {
+		additionalFlags += createFlagChain("Namespace", []string{o.Namespace})
 	}
-	if o.kubeContext != "" {
-		additionalFlags += createFlagChain("kube-context", []string{o.kubeContext})
+	if o.KubeContext != "" {
+		additionalFlags += createFlagChain("kube-context", []string{o.KubeContext})
 	}
-	if o.dryRun {
+	if o.DryRun {
 		additionalFlags += createFlagChain("dry-run", []string{""})
 	}
-	if o.debug {
+	if o.Debug {
 		additionalFlags += createFlagChain("debug", []string{""})
 	}
-	if o.tls {
+	if o.TLS {
 		additionalFlags += createFlagChain("tls", []string{""})
 	}
-	if o.tlsCert != "" {
-		additionalFlags += createFlagChain("tls-cert", []string{o.tlsCert})
+	if o.TLSCert != "" {
+		additionalFlags += createFlagChain("tls-cert", []string{o.TLSCert})
 	}
-	if o.tlsKey != "" {
-		additionalFlags += createFlagChain("tls-key", []string{o.tlsKey})
+	if o.TLSKey != "" {
+		additionalFlags += createFlagChain("tls-key", []string{o.TLSKey})
 	}
 
-	command := fmt.Sprintf("helm upgrade %s %s%s", o.name, o.chart, additionalFlags)
+	command := fmt.Sprintf("helm upgrade %s %s%s", o.ReleaseName, o.Chart, additionalFlags)
 	stdout, stderr, err := Capture(command)
 	if err != nil || len(stderr) != 0 {
 		return fmt.Errorf(string(stderr))
@@ -1295,60 +1260,27 @@ func upgrade(o upgradeOptions) error {
 	return nil
 }
 
-type runTemplateOptions struct {
-	chart       string
-	name        string
-	values      []string
-	valuesFiles []string
-	namespace   string
-	kubeContext string
-	timeout     int
-	install     bool
-	dryRun      bool
-	debug       bool
-	tls         bool
-	tlsCert     string
-	tlsKey      string
-	kubeConfig  string
-
-	tillerNs string
-	version  string
-
-	includeReleaseConfigmap bool
-	includeReleaseSecret    bool
-}
-
-func runTemplate(o runTemplateOptions) error {
+func Template(chart string, o TemplateOpts) error {
 	var additionalFlags string
-	additionalFlags += createFlagChain("set", o.values)
-	additionalFlags += createFlagChain("f", o.valuesFiles)
-	if o.namespace != "" {
-		additionalFlags += createFlagChain("namespace", []string{o.namespace})
+	additionalFlags += createFlagChain("set", o.SetValues)
+	additionalFlags += createFlagChain("f", o.ValuesFiles)
+	if o.Namespace != "" {
+		additionalFlags += createFlagChain("Namespace", []string{o.Namespace})
 	}
-	if o.kubeContext != "" {
-		additionalFlags += createFlagChain("kube-context", []string{o.kubeContext})
+	if o.KubeContext != "" {
+		additionalFlags += createFlagChain("kube-context", []string{o.KubeContext})
 	}
-	if o.name != "" {
-		additionalFlags += createFlagChain("name", []string{o.name})
+	if o.ReleaseName != "" {
+		additionalFlags += createFlagChain("name", []string{o.ReleaseName})
 	}
-	if o.debug {
+	if o.Debug {
 		additionalFlags += createFlagChain("debug", []string{""})
 	}
-	if o.tls {
-		additionalFlags += createFlagChain("tls", []string{""})
-	}
-	if o.tlsCert != "" {
-		additionalFlags += createFlagChain("tls-cert", []string{o.tlsCert})
-	}
-	if o.tlsKey != "" {
-		additionalFlags += createFlagChain("tls-key", []string{o.tlsKey})
+	if o.ChartVersion != "" {
+		additionalFlags += createFlagChain("--version", []string{o.ChartVersion})
 	}
 
-	if o.version != "" {
-		additionalFlags += createFlagChain("--version", []string{o.version})
-	}
-
-	command := fmt.Sprintf("helm template %s%s", o.chart, additionalFlags)
+	command := fmt.Sprintf("helm template %s%s", chart, additionalFlags)
 	stdout, stderr, err := Capture(command)
 	if err != nil || len(stderr) != 0 {
 		return fmt.Errorf(string(stderr))
@@ -1356,24 +1288,24 @@ func runTemplate(o runTemplateOptions) error {
 
 	var output string
 
-	if o.includeReleaseConfigmap || o.includeReleaseSecret {
-		repoNameAndChart := strings.Split(o.chart, "/")
+	if o.IncludeReleaseConfigmap || o.IncludeReleaseSecret {
+		repoNameAndChart := strings.Split(chart, "/")
 
 		chartWithoutRepoName := repoNameAndChart[len(repoNameAndChart)-1]
 
-		ver := o.version
+		ver := o.ChartVersion
 
 		releaseManifests := []x.ReleaseManifest{}
 
-		if o.includeReleaseConfigmap {
+		if o.IncludeReleaseConfigmap {
 			releaseManifests = append(releaseManifests, x.ReleaseToConfigMap)
 		}
 
-		if o.includeReleaseSecret {
+		if o.IncludeReleaseSecret {
 			releaseManifests = append(releaseManifests, x.ReleaseToSecret)
 		}
 
-		output, err = x.TurnHelmTemplateToInstall(chartWithoutRepoName, ver, o.tillerNs, o.name, o.namespace, string(stdout), releaseManifests...)
+		output, err = x.TurnHelmTemplateToInstall(chartWithoutRepoName, ver, o.TillerNamespace, o.ReleaseName, o.Namespace, string(stdout), releaseManifests...)
 		if err != nil {
 			return err
 		}
@@ -1386,45 +1318,49 @@ func runTemplate(o runTemplateOptions) error {
 	return nil
 }
 
-type diffOptions struct {
-	chart       string
-	name        string
-	values      []string
-	valuesFiles []string
-	namespace   string
-	kubeContext string
-	tls         bool
-	tlsCert     string
-	tlsKey      string
+type DiffOpts struct {
+	*ChartifyOpts
+
+	Chart       string
+	ReleaseName string
+	SetValues   []string
+	ValuesFiles []string
+	Namespace   string
+	KubeContext string
+	TLS         bool
+	TLSCert     string
+	TLSKey      string
 	kubeConfig  string
+
+	out io.Writer
 }
 
-func diff(o diffOptions) error {
+func diff(o DiffOpts) error {
 	var additionalFlags string
-	additionalFlags += createFlagChain("set", o.values)
-	additionalFlags += createFlagChain("f", o.valuesFiles)
+	additionalFlags += createFlagChain("set", o.SetValues)
+	additionalFlags += createFlagChain("f", o.ValuesFiles)
 	additionalFlags += createFlagChain("allow-unreleased", []string{""})
 	additionalFlags += createFlagChain("detailed-exitcode", []string{""})
 	additionalFlags += createFlagChain("context", []string{"3"})
 	additionalFlags += createFlagChain("reset-values", []string{""})
 	additionalFlags += createFlagChain("suppress-secrets", []string{""})
-	if o.namespace != "" {
-		additionalFlags += createFlagChain("namespace", []string{o.namespace})
+	if o.Namespace != "" {
+		additionalFlags += createFlagChain("Namespace", []string{o.Namespace})
 	}
-	if o.kubeContext != "" {
-		additionalFlags += createFlagChain("kube-context", []string{o.kubeContext})
+	if o.KubeContext != "" {
+		additionalFlags += createFlagChain("kube-context", []string{o.KubeContext})
 	}
-	if o.tls {
+	if o.TLS {
 		additionalFlags += createFlagChain("tls", []string{""})
 	}
-	if o.tlsCert != "" {
-		additionalFlags += createFlagChain("tls-cert", []string{o.tlsCert})
+	if o.TLSCert != "" {
+		additionalFlags += createFlagChain("tls-cert", []string{o.TLSCert})
 	}
-	if o.tlsKey != "" {
-		additionalFlags += createFlagChain("tls-key", []string{o.tlsKey})
+	if o.TLSKey != "" {
+		additionalFlags += createFlagChain("tls-key", []string{o.TLSKey})
 	}
 
-	command := fmt.Sprintf("helm diff upgrade %s %s%s", o.name, o.chart, additionalFlags)
+	command := fmt.Sprintf("helm diff upgrade %s %s%s", o.ReleaseName, o.Chart, additionalFlags)
 	err := Exec(command)
 	if err != nil {
 		return err
