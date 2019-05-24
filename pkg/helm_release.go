@@ -28,14 +28,18 @@ func TurnHelmTemplateToInstall(chartName, version, tillerNs, releaseName, ns, ma
 			Data: manifestData,
 		},
 	}
+	if version == "" {
+		version = "0.0.0"
+	}
 	c := &chart.Chart{
 		Metadata: &chart.Metadata{
 			Name:       chartName,
 			ApiVersion: "v1",
 			AppVersion: version,
+			Version:    version,
 		},
 		Templates:    templates,
-		Values:       &chart.Config{Raw: ""},
+		Values:       &chart.Config{Raw: "{}"},
 		Dependencies: []*chart.Chart{},
 		Files: []*any.Any{
 			{
@@ -45,26 +49,31 @@ func TurnHelmTemplateToInstall(chartName, version, tillerNs, releaseName, ns, ma
 		},
 	}
 
+	if ns == "" {
+		ns = "default"
+	}
+
 	ts := timeconv.Now()
 	// See `kubectl get configmap -n kube-system -o jsonpath={.data.release} foo.v1 | base64 -D  | gunzip -` for
 	// real-world examples
 	release := &rspb.Release{
-		Chart: c,
+		Name: releaseName,
 		Info: &rspb.Info{
 			FirstDeployed: ts,
 			LastDeployed:  ts,
-			Status:        &rspb.Status{},
-			Description:   fmt.Sprintf("Adopted with helm-x"),
+			Status: &rspb.Status{
+				Code: rspb.Status_DEPLOYED,
+			},
+			Description: fmt.Sprintf("Adopted with helm-x"),
 		},
-		Hooks:    hooks,
-		Config:   &chart.Config{Raw: ""},
+		Chart:    c,
+		Config:   &chart.Config{Raw: "{}"},
 		Manifest: man,
+		Hooks:    hooks,
+		// Starts from "1". Try installing any chart and see by running `helm install --name foo yourchart && kubectl -n kube-system get configmap -o yaml foo.v1`
+		Version:   1,
+		Namespace: ns,
 	}
-	release.Name = releaseName
-	release.Namespace = ns
-	release.Info.Status.Code = rspb.Status_DEPLOYED
-	// Starts from "1". Try installing any chart and see by running `helm install --name foo yourchart && kubectl -n kube-system get configmap -o yaml foo.v1`
-	release.Version = 1
 
 	concatenated := man
 

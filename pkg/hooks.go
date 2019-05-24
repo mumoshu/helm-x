@@ -66,12 +66,21 @@ func SplitManifestAndHooks(manifest string) (string, []*release.Hook, error) {
 			continue
 		}
 
+		hookEvent, ok := events[hook]
+		if !ok {
+			return "", nil, fmt.Errorf("unexpected hook: %s", hook)
+		}
+
+		if r.Metadata.Name == "" {
+			return "", nil, fmt.Errorf("assertion failed: expected metadata.name to be non-nil, but was nil: %+v", r)
+		}
+
 		rh := &release.Hook{
-			Events:   []release.Hook_Event{events[hook]},
-			Kind:     r.Kind,
-			Manifest: strings.Join(lines[1:], "\n"),
 			Name:     r.Metadata.Name,
+			Kind:     r.Kind,
 			Path:     source,
+			Manifest: strings.Join(lines[1:], "\n"),
+			Events:   []release.Hook_Event{hookEvent},
 		}
 
 		result = append(result, rh)
