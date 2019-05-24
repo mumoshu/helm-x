@@ -1,13 +1,12 @@
 package x
 
-// Copied from k8s.io/helm/pkg/storage/driver/labels.go with love
+// Copied from https://github.com/helm/helm/blob/90f50a11db5e81be0edd179b60a50adb9fcf3942/pkg/storage/driver/cfgmaps.go#L232 with love
 
 import (
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"strconv"
-
 	rspb "k8s.io/helm/pkg/proto/hapi/release"
+	"strconv"
 )
 
 func newConfigMapsObject(key string, rls *rspb.Release, lbs labels) (*v1.ConfigMap, error) {

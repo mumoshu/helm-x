@@ -1295,6 +1295,7 @@ type runTemplateOptions struct {
 	version  string
 
 	includeReleaseConfigmap bool
+	includeReleaseSecret    bool
 }
 
 func runTemplate(o runTemplateOptions) error {
@@ -1335,14 +1336,24 @@ func runTemplate(o runTemplateOptions) error {
 
 	var output string
 
-	if o.includeReleaseConfigmap {
+	if o.includeReleaseConfigmap || o.includeReleaseSecret {
 		repoNameAndChart := strings.Split(o.chart, "/")
 
 		chartWithoutRepoName := repoNameAndChart[len(repoNameAndChart)-1]
 
 		ver := o.version
 
-		output, err = x.TurnHelmTemplateToInstall(chartWithoutRepoName, ver, o.tillerNs, o.name, o.namespace, string(stdout))
+		releaseManifests := []x.ReleaseManifest{}
+
+		if o.includeReleaseConfigmap {
+			releaseManifests = append(releaseManifests, x.ReleaseToConfigMap)
+		}
+
+		if o.includeReleaseSecret {
+			releaseManifests = append(releaseManifests, x.ReleaseToSecret)
+		}
+
+		output, err = x.TurnHelmTemplateToInstall(chartWithoutRepoName, ver, o.tillerNs, o.name, o.namespace, string(stdout), releaseManifests...)
 		if err != nil {
 			return err
 		}
