@@ -1,4 +1,4 @@
-package x
+package releasetool
 
 // Copied with love from helm's pkg/storage/storage.go
 

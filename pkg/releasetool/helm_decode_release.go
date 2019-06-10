@@ -1,4 +1,4 @@
-package x
+package releasetool
 
 // Copied and adopted with some modification from k8s.io/helm/pkg/storage/driver/util.go with love
 

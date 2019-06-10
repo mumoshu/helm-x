@@ -1,4 +1,4 @@
-package x
+package releasetool
 
 // Copied from k8s.io/helm/pkg/storage/driver/labels.go with love
 

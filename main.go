@@ -4,7 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/mumoshu/helm-x/pkg"
+	"github.com/mumoshu/helm-x/pkg/helmx"
+	"github.com/mumoshu/helm-x/pkg/releasetool"
 	"github.com/spf13/pflag"
 	"io"
 	"log"
@@ -48,7 +49,7 @@ func NewRootCmd() *cobra.Command {
 }
 
 type dumpCmd struct {
-	*x.ClientOpts
+	*helmx.ClientOpts
 
 	TillerNamespace string
 
@@ -57,7 +58,7 @@ type dumpCmd struct {
 
 // NewApplyCommand represents the apply command
 func NewApplyCommand(out io.Writer, cmdName string, installByDefault bool) *cobra.Command {
-	upOpts := &x.UpgradeOpts{Out: out}
+	upOpts := &helmx.UpgradeOpts{Out: out}
 
 	cmd := &cobra.Command{
 		Use:   fmt.Sprintf("%s [RELEASE] [DIR_OR_CHART]", cmdName),
@@ -86,7 +87,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 			dir := args[1]
 
 			upOpts.ReleaseName = release
-			tempDir, err := x.Chartify(dir, *upOpts.ChartifyOpts)
+			tempDir, err := helmx.Chartify(dir, *upOpts.ChartifyOpts)
 			if err != nil {
 				cmd.SilenceUsage = true
 				return err
@@ -101,12 +102,12 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 			upOpts.Chart = tempDir
 
 			if len(upOpts.Adopt) > 0 {
-				if err := x.Adopt(upOpts.TillerNamespace, release, upOpts.Namespace, upOpts.Adopt); err != nil {
+				if err := helmx.Adopt(upOpts.TillerNamespace, release, upOpts.Namespace, upOpts.Adopt); err != nil {
 					return err
 				}
 			}
 
-			if err := x.Upgrade(*upOpts); err != nil {
+			if err := helmx.Upgrade(*upOpts); err != nil {
 				cmd.SilenceUsage = true
 				return err
 			}
@@ -133,7 +134,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 
 // NewTemplateCommand represents the template command
 func NewTemplateCommand(out io.Writer) *cobra.Command {
-	templateOpts := &x.TemplateOpts{Out: out}
+	templateOpts := &helmx.TemplateOpts{Out: out}
 
 	cmd := &cobra.Command{
 		Use:   "template [DIR_OR_CHART]",
@@ -157,7 +158,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 		RunE: func(cmd *cobra.Command, args []string) error {
 			dir := args[0]
 
-			tempDir, err := x.Chartify(dir, *templateOpts.ChartifyOpts)
+			tempDir, err := helmx.Chartify(dir, *templateOpts.ChartifyOpts)
 			if err != nil {
 				cmd.SilenceUsage = true
 				return err
@@ -168,7 +169,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 				defer os.RemoveAll(tempDir)
 			}
 
-			if err := x.Template(tempDir, *templateOpts); err != nil {
+			if err := helmx.Template(tempDir, *templateOpts); err != nil {
 				cmd.SilenceUsage = true
 				return err
 			}
@@ -190,7 +191,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 
 // NewDiffCommand represents the diff command
 func NewDiffCommand(out io.Writer) *cobra.Command {
-	diffOpts := &x.DiffOpts{Out: out}
+	diffOpts := &helmx.DiffOpts{Out: out}
 
 	cmd := &cobra.Command{
 		Use:   "diff [RELEASE] [DIR_OR_CHART]",
@@ -216,7 +217,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 			dir := args[1]
 
 			diffOpts.ReleaseName = release
-			tempDir, err := x.Chartify(dir, *diffOpts.ChartifyOpts)
+			tempDir, err := helmx.Chartify(dir, *diffOpts.ChartifyOpts)
 			if err != nil {
 				cmd.SilenceUsage = true
 				return err
@@ -229,7 +230,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 
 			diffOpts.Chart = tempDir
 			diffOpts.ReleaseName = release
-			if err := x.Diff(*diffOpts); err != nil {
+			if err := helmx.Diff(*diffOpts); err != nil {
 				cmd.SilenceUsage = true
 				return err
 			}
@@ -249,7 +250,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 
 // NewAdopt represents the adopt command
 func NewAdopt(out io.Writer) *cobra.Command {
-	adoptOpts := &x.AdoptOpts{Out: out}
+	adoptOpts := &helmx.AdoptOpts{Out: out}
 
 	cmd := &cobra.Command{
 		Use: "adopt [RELEASE] [RESOURCES]...",
@@ -274,7 +275,7 @@ So that the full command looks like:
 			tillerNs := adoptOpts.TillerNamespace
 			resources := args[1:]
 
-			return x.Adopt(tillerNs, release, adoptOpts.Namespace, resources)
+			return helmx.Adopt(tillerNs, release, adoptOpts.Namespace, resources)
 		},
 	}
 	f := cmd.Flags()
@@ -301,12 +302,12 @@ func NewUtilDumpRelease(out io.Writer) *cobra.Command {
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			release := args[0]
-			storage, err := x.NewConfigMapsStorage(dumpOpts.TillerNamespace)
+			storage, err := releasetool.New(dumpOpts.TillerNamespace, releasetool.Opts{StorageBackend: dumpOpts.TillerStorageBackend})
 			if err != nil {
 				return err
 			}
 
-			r, err := storage.GetRelease(release)
+			r, err := storage.GetDeployedRelease(release)
 			if err != nil {
 				return err
 			}
@@ -337,8 +338,8 @@ func NewUtilDumpRelease(out io.Writer) *cobra.Command {
 	return cmd
 }
 
-func chartifyOptsFromFlags(f *pflag.FlagSet) *x.ChartifyOpts {
-	chartifyOpts := &x.ChartifyOpts{}
+func chartifyOptsFromFlags(f *pflag.FlagSet) *helmx.ChartifyOpts {
+	chartifyOpts := &helmx.ChartifyOpts{}
 
 	f.StringArrayVar(&chartifyOpts.Injectors, "injector", []string{}, "DEPRECATED: Use `--inject \"CMD ARG1 ARG2\"` instead. injector to use (must be pre-installed) and flags to be passed in the syntax of `'CMD SUBCMD,FLAG1=VAL1,FLAG2=VAL2'`. Flags should be without leading \"--\" (can specify multiple). \"FILE\" in values are replaced with the Kubernetes manifest file being injected. Example: \"--injector 'istioctl kube-inject f=FILE,injectConfigFile=inject-config.yaml,meshConfigFile=mesh.config.yaml\"")
 	f.StringArrayVar(&chartifyOpts.Injects, "inject", []string{}, "injector to use (must be pre-installed) and flags to be passed in the syntax of `'istioctl kube-inject -f FILE'`. \"FILE\" is replaced with the Kubernetes manifest file being injected")
@@ -357,11 +358,12 @@ func chartifyOptsFromFlags(f *pflag.FlagSet) *x.ChartifyOpts {
 	return chartifyOpts
 }
 
-func clientOptsFromFlags(f *pflag.FlagSet) *x.ClientOpts {
-	clientOpts := &x.ClientOpts{}
+func clientOptsFromFlags(f *pflag.FlagSet) *helmx.ClientOpts {
+	clientOpts := &helmx.ClientOpts{}
 	f.BoolVar(&clientOpts.TLS, "tls", false, "enable TLS for request")
 	f.StringVar(&clientOpts.TLSCert, "tls-cert", "", "path to TLS certificate file (default: $HELM_HOME/cert.pem)")
 	f.StringVar(&clientOpts.TLSKey, "tls-key", "", "path to TLS key file (default: $HELM_HOME/key.pem)")
 	f.StringVar(&clientOpts.KubeContext, "kubecontext", "", "the kubeconfig context to use")
+	f.StringVar(&clientOpts.TillerStorageBackend, "tiller-storage-backend", "configmaps", "the tiller storage backend to use. either `configmaps` or `secrets` are supported. See the upstream doc for more context: https://helm.sh/docs/install/#storage-backends")
 	return clientOpts
 }

@@ -1,4 +1,4 @@
-package x
+package releasetool
 
 import (
 	"encoding/base64"
@@ -101,7 +101,7 @@ func TurnHelmTemplateToInstall(chartName, version, tillerNs, releaseName, ns, ma
 	return concatenated, nil
 }
 
-func (s *ReleaseStorage) BumpVersion(release *rspb.Release) (*rspb.Release, error) {
+func (s *ReleaseTool) BumpVersion(release *rspb.Release) (*rspb.Release, error) {
 	latest, err := s.GetLatestRelease(release.Name)
 	if err != nil {
 		return nil, err
@@ -111,7 +111,7 @@ func (s *ReleaseStorage) BumpVersion(release *rspb.Release) (*rspb.Release, erro
 	return release, nil
 }
 
-func (s *ReleaseStorage) ReleaseToConfigMap(release *rspb.Release, tillerNs string) (interface{}, error) {
+func (s *ReleaseTool) ReleaseToConfigMap(release *rspb.Release, tillerNs string) (interface{}, error) {
 	var err error
 	release, err = s.BumpVersion(release)
 
@@ -136,7 +136,7 @@ func (s *ReleaseStorage) ReleaseToConfigMap(release *rspb.Release, tillerNs stri
 	return cfgmap, nil
 }
 
-func (s *ReleaseStorage) ReleaseToSecret(release *rspb.Release, tillerNs string) (interface{}, error) {
+func (s *ReleaseTool) ReleaseToSecret(release *rspb.Release, tillerNs string) (interface{}, error) {
 	var err error
 	release, err = s.BumpVersion(release)
 
