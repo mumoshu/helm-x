@@ -101,9 +101,21 @@ func TurnHelmTemplateToInstall(chartName, version, tillerNs, releaseName, ns, ma
 	return concatenated, nil
 }
 
-func ReleaseToConfigMap(release *rspb.Release, tillerNs string) (interface{}, error) {
-	// Adopted from https://github.com/helm/helm/blob/90f50a11db5e81be0edd179b60a50adb9fcf3942/pkg/storage/driver/cfgmaps.go#L152-L164 with love
+func (s *ReleaseStorage) BumpVersion(release *rspb.Release) (*rspb.Release, error) {
+	latest, err := s.GetLatestRelease(release.Name)
+	if err != nil {
+		return nil, err
+	}
+	release.Version = latest.Version + 1
 
+	return release, nil
+}
+
+func (s *ReleaseStorage) ReleaseToConfigMap(release *rspb.Release, tillerNs string) (interface{}, error) {
+	var err error
+	release, err = s.BumpVersion(release)
+
+	// Adopted from https://github.com/helm/helm/blob/90f50a11db5e81be0edd179b60a50adb9fcf3942/pkg/storage/driver/cfgmaps.go#L152-L164 with love
 	var lbs labels
 
 	lbs.init()
@@ -124,7 +136,10 @@ func ReleaseToConfigMap(release *rspb.Release, tillerNs string) (interface{}, er
 	return cfgmap, nil
 }
 
-func ReleaseToSecret(release *rspb.Release, tillerNs string) (interface{}, error) {
+func (s *ReleaseStorage) ReleaseToSecret(release *rspb.Release, tillerNs string) (interface{}, error) {
+	var err error
+	release, err = s.BumpVersion(release)
+
 	// Adopted from https://github.com/helm/helm/blob/90f50a11db5e81be0edd179b60a50adb9fcf3942/pkg/storage/driver/secrets.go#L152-L157 with love
 
 	var lbs labels

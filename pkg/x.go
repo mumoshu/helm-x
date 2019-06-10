@@ -900,11 +900,21 @@ func Template(chart string, templateOpts TemplateOpts) error {
 		releaseManifests := []ReleaseManifest{}
 
 		if templateOpts.IncludeReleaseConfigmap {
-			releaseManifests = append(releaseManifests, ReleaseToConfigMap)
+			storage, err := NewConfigMapsStorage(templateOpts.TillerNamespace)
+			if err != nil {
+				return err
+			}
+
+			releaseManifests = append(releaseManifests, storage.ReleaseToConfigMap)
 		}
 
 		if templateOpts.IncludeReleaseSecret {
-			releaseManifests = append(releaseManifests, ReleaseToSecret)
+			storage, err := NewConfigMapsStorage(templateOpts.TillerNamespace)
+			if err != nil {
+				return err
+			}
+
+			releaseManifests = append(releaseManifests, storage.ReleaseToSecret)
 		}
 
 		output, err = TurnHelmTemplateToInstall(chartWithoutRepoName, ver, templateOpts.TillerNamespace, templateOpts.ReleaseName, templateOpts.Namespace, string(stdout), releaseManifests...)
