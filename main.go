@@ -228,11 +228,13 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 				defer os.RemoveAll(tempDir)
 			}
 
-			diffOpts.Chart = tempDir
-			diffOpts.ReleaseName = release
-			if err := helmx.Diff(*diffOpts); err != nil {
+			changed, err := helmx.Diff(release, tempDir, *diffOpts)
+			if err != nil {
 				cmd.SilenceUsage = true
 				return err
+			}
+			if changed {
+				os.Exit(2)
 			}
 
 			return nil
