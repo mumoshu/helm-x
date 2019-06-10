@@ -1,11 +1,9 @@
 package helmx
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"math/rand"
 	"os"
 	"os/exec"
@@ -103,7 +101,7 @@ func (r *Runner) copyToTempDir(path string) (string, error) {
 
 func (r *Runner) fetchAndUntarUnderDir(path, tempDir string) (string, error) {
 	command := fmt.Sprintf("helm fetch %s --untar -d %s", path, tempDir)
-	_, stderr, err := r.DeprecatedCapture(command)
+	_, stderr, err := r.DeprecatedCaptureBytes(command)
 	if err != nil || len(stderr) != 0 {
 		return "", fmt.Errorf(string(stderr))
 	}
@@ -119,7 +117,7 @@ func (r *Runner) fetchAndUntarUnderDir(path, tempDir string) (string, error) {
 
 func (r *Runner) untarUnderDir(path, tempDir string) (string, error) {
 	command := fmt.Sprintf("tar -zxvf %s -C %s", path, tempDir)
-	_, stderr, err := r.DeprecatedCapture(command)
+	_, stderr, err := r.DeprecatedCaptureBytes(command)
 	if err != nil {
 		return "", fmt.Errorf("%v: %s", err, string(stderr))
 	}
@@ -195,7 +193,7 @@ func (r *Runner) template(o templateOptions) error {
 
 	for _, file := range o.files {
 		command := fmt.Sprintf("helm template --debug=false %s --name %s -x %s%s", o.chart, o.name, file, additionalFlags)
-		stdout, stderr, err := r.DeprecatedCapture(command)
+		stdout, stderr, err := r.DeprecatedCaptureBytes(command)
 		if err != nil || len(stderr) != 0 {
 			return fmt.Errorf(string(stderr))
 		}
@@ -217,11 +215,11 @@ func (r *Runner) DeprecatedExec(cmd string) error {
 		return err
 	}
 
-	return r.commander.run(binary, args[1:], os.Stdout, os.Stderr)
+	return r.commander.RunCommand(binary, args[1:], os.Stdout, os.Stderr)
 }
 
-// DeprecatedCapture takes a command as a string and executes it, and returns the captured stdout and stderr
-func (r *Runner) DeprecatedCapture(cmd string) ([]byte, []byte, error) {
+// DeprecatedCaptureBytes takes a command as a string and executes it, and returns the captured stdout and stderr
+func (r *Runner) DeprecatedCaptureBytes(cmd string) ([]byte, []byte, error) {
 	args := strings.Split(cmd, " ")
 	binary := args[0]
 	_, err := exec.LookPath(binary)
@@ -229,23 +227,11 @@ func (r *Runner) DeprecatedCapture(cmd string) ([]byte, []byte, error) {
 		return nil, nil, err
 	}
 
-	return r.Capture(binary, args[1:])
+	return r.CaptureBytes(binary, args[1:])
 }
 
-func (r *Runner) Capture(binary string, args []string) ([]byte, []byte, error) {
-	klog.Infof("running %s %s", binary, strings.Join(args, " "))
-	_, err := exec.LookPath(binary)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	var stdout, stderr bytes.Buffer
-	err = r.commander.run(binary, args, &stdout, &stderr)
-	if err != nil {
-		log.Print(stderr.String())
-		log.Fatal(err)
-	}
-	return stdout.Bytes(), stderr.Bytes(), err
+func (r *Runner) CaptureBytes(binary string, args []string) ([]byte, []byte, error) {
+	return r.commander.CaptureBytes(binary, args)
 }
 
 // MkRandomDir creates a new directory with a random name made of numbers

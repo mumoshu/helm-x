@@ -24,7 +24,7 @@ func (r *Runner) Template(chart string, templateOpts TemplateOpts) error {
 	}
 
 	command := fmt.Sprintf("helm template %s%s", chart, additionalFlags)
-	stdout, stderr, err := r.DeprecatedCapture(command)
+	stdout, stderr, err := r.DeprecatedCaptureBytes(command)
 	if err != nil || len(stderr) != 0 {
 		return fmt.Errorf(string(stderr))
 	}

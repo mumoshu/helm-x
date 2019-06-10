@@ -34,7 +34,7 @@ func (r *Runner) Inject(o InjectOpts) error {
 		for _, file := range o.files {
 			flags := strings.Replace(flagsTemplate, "FILE", file, 1)
 			command := fmt.Sprintf("%s %s", injector, flags)
-			stdout, stderr, err := r.DeprecatedCapture(command)
+			stdout, stderr, err := r.DeprecatedCaptureBytes(command)
 			if err != nil {
 				return fmt.Errorf(string(stderr))
 			}
@@ -48,7 +48,7 @@ func (r *Runner) Inject(o InjectOpts) error {
 		for _, file := range o.files {
 			cmd := strings.Replace(tmpl, "FILE", file, 1)
 
-			stdout, stderr, err := r.DeprecatedCapture(cmd)
+			stdout, stderr, err := r.DeprecatedCaptureBytes(cmd)
 			if err != nil {
 				return fmt.Errorf(string(stderr))
 			}

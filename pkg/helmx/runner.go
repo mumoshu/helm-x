@@ -1,6 +1,7 @@
 package helmx
 
 import (
+	"github.com/mumoshu/helm-x/pkg/cmdsite"
 	"io"
 	"os"
 	"os/exec"
@@ -8,11 +9,34 @@ import (
 )
 
 type Runner struct {
-	commander *commander
+	commander *cmdsite.CommandSite
+}
+
+type Option func(*Runner) error
+
+func Commander(c cmdsite.RunCommand) Option {
+	return func(r *Runner) error {
+		r.commander.RunCmd = c
+		return nil
+	}
+}
+
+func New(opts ...Option) *Runner {
+	cs := cmdsite.New()
+	cs.RunCmd = DefaultRunCommand
+	r := &Runner{
+		commander: cmdsite.New(),
+	}
+	for i := range opts {
+		if err := opts[i](r); err != nil {
+			panic(err)
+		}
+	}
+	return r
 }
 
 func (r *Runner) Run(name string, args ...string) (string, error) {
-	bytes, _, err := r.Capture(name, args)
+	bytes, _, err := r.CaptureBytes(name, args)
 	if err != nil {
 		var out string
 		if bytes != nil {
@@ -23,33 +47,12 @@ func (r *Runner) Run(name string, args ...string) (string, error) {
 	return string(bytes), nil
 }
 
-func New() *Runner {
-	return &Runner{
-		commander: &commander{
-			runCmd: DefaultRunCommand,
-			env:    map[string]string{},
-		},
-	}
-}
-
 func DefaultRunCommand(cmd string, args []string, stdout, stderr io.Writer, env map[string]string) error {
 	command := exec.Command(cmd, args...)
 	command.Stdout = stdout
 	command.Stderr = stderr
 	command.Env = mergeEnv(os.Environ(), env)
 	return command.Run()
-}
-
-type RunCommand func(name string, args []string, stdout, stderr io.Writer, env map[string]string) error
-
-type commander struct {
-	runCmd RunCommand
-
-	env map[string]string
-}
-
-func (s *commander) run(cmd string, args []string, stdout, stderr io.Writer) error {
-	return s.runCmd(cmd, args, stdout, stderr, s.env)
 }
 
 func mergeEnv(orig []string, new map[string]string) []string {

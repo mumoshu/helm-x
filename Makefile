@@ -26,7 +26,7 @@ format:
 
 .PHONY: test
 test: build
-	echo no tests implemented yet!
+	go test ./...
 
 .PHONY: build
 build:
