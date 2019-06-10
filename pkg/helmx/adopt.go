@@ -17,26 +17,54 @@ type AdoptOpts struct {
 	Out io.Writer
 }
 
-type AdoptOption func(*AdoptOpts) error
-
-func AdoptTillerNamespace(tillerNs string) AdoptOption {
-	return func(o *AdoptOpts) error {
-		o.TillerNamespace = tillerNs
-		return nil
-	}
+type adoptOption interface {
+	SetAdoptOption(*AdoptOpts) error
 }
 
-func AdoptNamespace(ns string) AdoptOption {
-	return func(o *AdoptOpts) error {
-		o.Namespace = ns
-		return nil
-	}
+type diffOption interface {
+	SetDiffOption(*DiffOpts) error
 }
 
-func (r *Runner) Adopt(release string, resources []string, opts ...AdoptOption) error {
+type tillerNamespace struct {
+	tillerNs string
+}
+
+func (n *tillerNamespace) SetAdoptOption(o *AdoptOpts) error {
+	o.TillerNamespace = n.tillerNs
+	return nil
+}
+
+func (n *tillerNamespace) SetDiffOption(o *DiffOpts) error {
+	o.TillerNamespace = n.tillerNs
+	return nil
+}
+
+func TillerNamespace(tillerNs string) *tillerNamespace {
+	return &tillerNamespace{tillerNs: tillerNs}
+}
+
+type namespace struct {
+	ns string
+}
+
+func (n *namespace) SetAdoptOption(o *AdoptOpts) error {
+	o.Namespace = n.ns
+	return nil
+}
+
+func (n *namespace) SetDiffOption(o *DiffOpts) error {
+	o.Namespace = n.ns
+	return nil
+}
+
+func Namespace(ns string) *namespace {
+	return &namespace{ns: ns}
+}
+
+func (r *Runner) Adopt(release string, resources []string, opts ...adoptOption) error {
 	o := &AdoptOpts{}
 	for i := range opts {
-		if err := opts[i](o); err != nil {
+		if err := opts[i].SetAdoptOption(o); err != nil {
 			return err
 		}
 	}

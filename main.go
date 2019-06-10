@@ -105,8 +105,8 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 				if err := helmx.New().Adopt(
 					release,
 					upOpts.Adopt,
-					helmx.AdoptTillerNamespace(upOpts.TillerNamespace),
-					helmx.AdoptNamespace(upOpts.Namespace),
+					helmx.TillerNamespace(upOpts.TillerNamespace),
+					helmx.Namespace(upOpts.Namespace),
 				); err != nil {
 					return err
 				}
@@ -282,7 +282,7 @@ So that the full command looks like:
 			tillerNs := adoptOpts.TillerNamespace
 			resources := args[1:]
 
-			return helmx.New().Adopt(release, resources, helmx.AdoptTillerNamespace(tillerNs), helmx.AdoptNamespace(adoptOpts.Namespace))
+			return helmx.New().Adopt(release, resources, helmx.TillerNamespace(tillerNs), helmx.Namespace(adoptOpts.Namespace))
 		},
 	}
 	f := cmd.Flags()
