@@ -85,14 +85,14 @@ func export(item map[string]interface{}) map[string]interface{} {
 
 // copyToTempDir checks if the path is local or a repo (in this order) and copies it to a temp directory
 // It will perform a `helm fetch` if required
-func copyToTempDir(path string) (string, error) {
+func (r *Runner) copyToTempDir(path string) (string, error) {
 	tempDir := mkRandomDir(os.TempDir())
 	exists, err := exists(path)
 	if err != nil {
 		return "", err
 	}
 	if !exists {
-		return fetchAndUntarUnderDir(path, tempDir)
+		return r.fetchAndUntarUnderDir(path, tempDir)
 	}
 	err = copy.Copy(path, tempDir)
 	if err != nil {
@@ -101,9 +101,9 @@ func copyToTempDir(path string) (string, error) {
 	return tempDir, nil
 }
 
-func fetchAndUntarUnderDir(path, tempDir string) (string, error) {
+func (r *Runner) fetchAndUntarUnderDir(path, tempDir string) (string, error) {
 	command := fmt.Sprintf("helm fetch %s --untar -d %s", path, tempDir)
-	_, stderr, err := Capture(command)
+	_, stderr, err := r.DeprecatedCapture(command)
 	if err != nil || len(stderr) != 0 {
 		return "", fmt.Errorf(string(stderr))
 	}
@@ -117,9 +117,9 @@ func fetchAndUntarUnderDir(path, tempDir string) (string, error) {
 	return filepath.Join(tempDir, files[0].Name()), nil
 }
 
-func untarUnderDir(path, tempDir string) (string, error) {
+func (r *Runner) untarUnderDir(path, tempDir string) (string, error) {
 	command := fmt.Sprintf("tar -zxvf %s -C %s", path, tempDir)
-	_, stderr, err := Capture(command)
+	_, stderr, err := r.DeprecatedCapture(command)
 	if err != nil {
 		return "", fmt.Errorf("%v: %s", err, string(stderr))
 	}
@@ -177,7 +177,7 @@ type templateOptions struct {
 	namespace   string
 }
 
-func template(o templateOptions) error {
+func (r *Runner) template(o templateOptions) error {
 	var additionalFlags string
 	additionalFlags += createFlagChain("set", o.values)
 	defaultValuesPath := filepath.Join(o.chart, "values.yaml")
@@ -195,7 +195,7 @@ func template(o templateOptions) error {
 
 	for _, file := range o.files {
 		command := fmt.Sprintf("helm template --debug=false %s --name %s -x %s%s", o.chart, o.name, file, additionalFlags)
-		stdout, stderr, err := Capture(command)
+		stdout, stderr, err := r.DeprecatedCapture(command)
 		if err != nil || len(stderr) != 0 {
 			return fmt.Errorf(string(stderr))
 		}
@@ -207,8 +207,8 @@ func template(o templateOptions) error {
 	return nil
 }
 
-// Exec takes a command as a string and executes it
-func Exec(cmd string) error {
+// DeprecatedExec takes a command as a string and executes it
+func (r *Runner) DeprecatedExec(cmd string) error {
 	klog.Infof("running %s", cmd)
 	args := strings.Split(cmd, " ")
 	binary := args[0]
@@ -217,16 +217,11 @@ func Exec(cmd string) error {
 		return err
 	}
 
-	command := exec.Command(binary, args[1:]...)
-	command.Stdout = os.Stdout
-	command.Stderr = os.Stderr
-	err = command.Run()
-	return err
+	return r.commander.run(binary, args[1:], os.Stdout, os.Stderr)
 }
 
-// Capture takes a command as a string and executes it, and returns the captured stdout and stderr
-func Capture(cmd string) ([]byte, []byte, error) {
-	klog.Infof("running %s", cmd)
+// DeprecatedCapture takes a command as a string and executes it, and returns the captured stdout and stderr
+func (r *Runner) DeprecatedCapture(cmd string) ([]byte, []byte, error) {
 	args := strings.Split(cmd, " ")
 	binary := args[0]
 	_, err := exec.LookPath(binary)
@@ -234,11 +229,18 @@ func Capture(cmd string) ([]byte, []byte, error) {
 		return nil, nil, err
 	}
 
-	command := exec.Command(binary, args[1:]...)
+	return r.Capture(binary, args[1:])
+}
+
+func (r *Runner) Capture(binary string, args []string) ([]byte, []byte, error) {
+	klog.Infof("running %s %s", binary, strings.Join(args, " "))
+	_, err := exec.LookPath(binary)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	var stdout, stderr bytes.Buffer
-	command.Stdout = &stdout
-	command.Stderr = &stderr
-	err = command.Run()
+	err = r.commander.run(binary, args, &stdout, &stderr)
 	if err != nil {
 		log.Print(stderr.String())
 		log.Fatal(err)

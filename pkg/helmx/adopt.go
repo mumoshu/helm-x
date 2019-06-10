@@ -17,7 +17,7 @@ type AdoptOpts struct {
 	Out io.Writer
 }
 
-func Adopt(tillerNs, release, namespace string, resources []string) error {
+func (r *Runner) Adopt(tillerNs, release, namespace string, resources []string) error {
 	storage, err := releasetool.NewConfigMapBackedReleaseTool(tillerNs)
 	if err != nil {
 		return err
@@ -35,7 +35,7 @@ func Adopt(tillerNs, release, namespace string, resources []string) error {
 
 	kubectlArgs = append(kubectlArgs, resources...)
 
-	jsonData, err := RunCommand("kubectl", kubectlArgs...)
+	jsonData, err := r.Run("kubectl", kubectlArgs...)
 	if err != nil {
 		return err
 	}

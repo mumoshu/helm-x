@@ -47,8 +47,8 @@ type ChartifyOpts struct {
 
 // Chartify creates a temporary Helm chart from a directory or a remote chart, and applies various transformations.
 // Returns the full path to the temporary directory containing the generated chart if succeeded.
-func Chartify(dirOrChart string, u ChartifyOpts) (string, error) {
-	tempDir, err := copyToTempDir(dirOrChart)
+func (r *Runner) Chartify(dirOrChart string, u ChartifyOpts) (string, error) {
+	tempDir, err := r.copyToTempDir(dirOrChart)
 	if err != nil {
 		return "", err
 	}
@@ -79,7 +79,7 @@ func Chartify(dirOrChart string, u ChartifyOpts) (string, error) {
 			values:      u.SetValues,
 			valuesFiles: u.ValuesFiles,
 		}
-		if err := template(templateOptions); err != nil {
+		if err := r.template(templateOptions); err != nil {
 			return "", err
 		}
 
@@ -137,13 +137,13 @@ func Chartify(dirOrChart string, u ChartifyOpts) (string, error) {
 			for _, image := range kustomizeOpts.Images {
 				args = append(args, image.String())
 			}
-			_, err := RunCommand("kustomize", args...)
+			_, err := r.Run("kustomize", args...)
 			if err != nil {
 				return "", err
 			}
 		}
 		if kustomizeOpts.NamePrefix != "" {
-			_, err := RunCommand("kustomize", "edit", "set", "nameprefix", kustomizeOpts.NamePrefix)
+			_, err := r.Run("kustomize", "edit", "set", "nameprefix", kustomizeOpts.NamePrefix)
 			if err != nil {
 				fmt.Println(err)
 				return "", err
@@ -151,19 +151,19 @@ func Chartify(dirOrChart string, u ChartifyOpts) (string, error) {
 		}
 		if kustomizeOpts.NameSuffix != "" {
 			// "--" is there to avoid `namesuffix -acme` to fail due to `-a` being considered as a flag
-			_, err := RunCommand("kustomize", "edit", "set", "namesuffix", "--", kustomizeOpts.NameSuffix)
+			_, err := r.Run("kustomize", "edit", "set", "namesuffix", "--", kustomizeOpts.NameSuffix)
 			if err != nil {
 				return "", err
 			}
 		}
 		if kustomizeOpts.Namespace != "" {
-			_, err := RunCommand("kustomize", "edit", "set", "namespace", kustomizeOpts.Namespace)
+			_, err := r.Run("kustomize", "edit", "set", "namespace", kustomizeOpts.Namespace)
 			if err != nil {
 				return "", err
 			}
 		}
 		kustomizeFile := filepath.Join(dstTemplatesDir, "kustomized.yaml")
-		out, err := RunCommand("kustomize", "-o", kustomizeFile, "build", tempDir)
+		out, err := r.Run("kustomize", "-o", kustomizeFile, "build", tempDir)
 		if err != nil {
 			return "", err
 		}
@@ -237,7 +237,7 @@ func Chartify(dirOrChart string, u ChartifyOpts) (string, error) {
 		}
 
 		var repoUrl string
-		out, err := RunCommand("helm", "repo", "list")
+		out, err := r.Run("helm", "repo", "list")
 		if err != nil {
 			return "", err
 		}
@@ -283,7 +283,7 @@ func Chartify(dirOrChart string, u ChartifyOpts) (string, error) {
 	}
 
 	{
-		_, err := RunCommand("helm", "dependency", "build", tempDir)
+		_, err := r.Run("helm", "dependency", "build", tempDir)
 		if err != nil {
 			return "", err
 		}
@@ -297,7 +297,7 @@ func Chartify(dirOrChart string, u ChartifyOpts) (string, error) {
 			chartsDir := filepath.Join(tempDir, "charts")
 
 			klog.Infof("unarchiving subchart %s to %s", match, chartsDir)
-			subchartDir, err := untarUnderDir(match, chartsDir)
+			subchartDir, err := r.untarUnderDir(match, chartsDir)
 			if err != nil {
 				return "", fmt.Errorf("fetchAndUntarUnderDir: %v", err)
 			}
@@ -320,7 +320,7 @@ func Chartify(dirOrChart string, u ChartifyOpts) (string, error) {
 				values:      u.SetValues,
 				valuesFiles: u.ValuesFiles,
 			}
-			if err := template(templateOptions); err != nil {
+			if err := r.template(templateOptions); err != nil {
 				return "", err
 			}
 
@@ -434,7 +434,7 @@ resources:
 
 			renderedFile := filepath.Join(tempDir, "templates/rendered.yaml")
 			klog.Infof("generating %s", renderedFile)
-			_, err := RunCommand("kustomize", "build", tempDir, "--output", renderedFile)
+			_, err := r.Run("kustomize", "build", tempDir, "--output", renderedFile)
 			if err != nil {
 				return "", err
 			}
@@ -455,7 +455,7 @@ resources:
 		injects:   u.Injects,
 		files:     generatedManifestFiles,
 	}
-	if err := Inject(injectOptions); err != nil {
+	if err := r.Inject(injectOptions); err != nil {
 		return "", err
 	}
 

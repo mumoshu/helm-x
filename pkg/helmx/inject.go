@@ -12,7 +12,7 @@ type InjectOpts struct {
 	files     []string
 }
 
-func Inject(o InjectOpts) error {
+func (r *Runner) Inject(o InjectOpts) error {
 	var flagsTemplate string
 	for _, inj := range o.injectors {
 
@@ -34,7 +34,7 @@ func Inject(o InjectOpts) error {
 		for _, file := range o.files {
 			flags := strings.Replace(flagsTemplate, "FILE", file, 1)
 			command := fmt.Sprintf("%s %s", injector, flags)
-			stdout, stderr, err := Capture(command)
+			stdout, stderr, err := r.DeprecatedCapture(command)
 			if err != nil {
 				return fmt.Errorf(string(stderr))
 			}
@@ -48,7 +48,7 @@ func Inject(o InjectOpts) error {
 		for _, file := range o.files {
 			cmd := strings.Replace(tmpl, "FILE", file, 1)
 
-			stdout, stderr, err := Capture(cmd)
+			stdout, stderr, err := r.DeprecatedCapture(cmd)
 			if err != nil {
 				return fmt.Errorf(string(stderr))
 			}

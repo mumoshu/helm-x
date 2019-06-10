@@ -87,7 +87,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 			dir := args[1]
 
 			upOpts.ReleaseName = release
-			tempDir, err := helmx.Chartify(dir, *upOpts.ChartifyOpts)
+			tempDir, err := helmx.New().Chartify(dir, *upOpts.ChartifyOpts)
 			if err != nil {
 				cmd.SilenceUsage = true
 				return err
@@ -102,12 +102,12 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 			upOpts.Chart = tempDir
 
 			if len(upOpts.Adopt) > 0 {
-				if err := helmx.Adopt(upOpts.TillerNamespace, release, upOpts.Namespace, upOpts.Adopt); err != nil {
+				if err := helmx.New().Adopt(upOpts.TillerNamespace, release, upOpts.Namespace, upOpts.Adopt); err != nil {
 					return err
 				}
 			}
 
-			if err := helmx.Upgrade(*upOpts); err != nil {
+			if err := helmx.New().Upgrade(*upOpts); err != nil {
 				cmd.SilenceUsage = true
 				return err
 			}
@@ -158,7 +158,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 		RunE: func(cmd *cobra.Command, args []string) error {
 			dir := args[0]
 
-			tempDir, err := helmx.Chartify(dir, *templateOpts.ChartifyOpts)
+			tempDir, err := helmx.New().Chartify(dir, *templateOpts.ChartifyOpts)
 			if err != nil {
 				cmd.SilenceUsage = true
 				return err
@@ -169,7 +169,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 				defer os.RemoveAll(tempDir)
 			}
 
-			if err := helmx.Template(tempDir, *templateOpts); err != nil {
+			if err := helmx.New().Template(tempDir, *templateOpts); err != nil {
 				cmd.SilenceUsage = true
 				return err
 			}
@@ -217,7 +217,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 			dir := args[1]
 
 			diffOpts.ReleaseName = release
-			tempDir, err := helmx.Chartify(dir, *diffOpts.ChartifyOpts)
+			tempDir, err := helmx.New().Chartify(dir, *diffOpts.ChartifyOpts)
 			if err != nil {
 				cmd.SilenceUsage = true
 				return err
@@ -228,7 +228,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 				defer os.RemoveAll(tempDir)
 			}
 
-			changed, err := helmx.Diff(release, tempDir, *diffOpts)
+			changed, err := helmx.New().Diff(release, tempDir, *diffOpts)
 			if err != nil {
 				cmd.SilenceUsage = true
 				return err
@@ -277,7 +277,7 @@ So that the full command looks like:
 			tillerNs := adoptOpts.TillerNamespace
 			resources := args[1:]
 
-			return helmx.Adopt(tillerNs, release, adoptOpts.Namespace, resources)
+			return helmx.New().Adopt(tillerNs, release, adoptOpts.Namespace, resources)
 		},
 	}
 	f := cmd.Flags()

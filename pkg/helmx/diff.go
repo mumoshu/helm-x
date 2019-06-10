@@ -45,7 +45,7 @@ func (o DiffOpts) GetTLSKey() string {
 	return o.TLSKey
 }
 
-type DiffConfigProvider interface {
+type DiffOptionsProvider interface {
 	GetSetValues() []string
 	GetValuesFiles() []string
 	GetNamespace() string
@@ -56,7 +56,7 @@ type DiffConfigProvider interface {
 }
 
 // Diff returns true when the diff succeeds and changes are detected.
-func Diff(release, chart string, o DiffConfigProvider) (bool, error) {
+func (r *Runner) Diff(release, chart string, o DiffOptionsProvider) (bool, error) {
 	var additionalFlags string
 	additionalFlags += createFlagChain("set", o.GetSetValues())
 	additionalFlags += createFlagChain("f", o.GetValuesFiles())
@@ -82,7 +82,7 @@ func Diff(release, chart string, o DiffConfigProvider) (bool, error) {
 	}
 
 	command := fmt.Sprintf("helm diff upgrade %s %s%s", release, chart, additionalFlags)
-	if err := Exec(command); err != nil {
+	if err := r.DeprecatedExec(command); err != nil {
 		switch e := err.(type) {
 		case *exec.ExitError:
 			if e.ExitCode() == 2 {

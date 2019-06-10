@@ -21,7 +21,7 @@ type UpgradeOpts struct {
 	Out io.Writer
 }
 
-func Upgrade(o UpgradeOpts) error {
+func (r *Runner) Upgrade(o UpgradeOpts) error {
 	var additionalFlags string
 	additionalFlags += createFlagChain("set", o.SetValues)
 	additionalFlags += createFlagChain("f", o.ValuesFiles)
@@ -52,7 +52,7 @@ func Upgrade(o UpgradeOpts) error {
 	}
 
 	command := fmt.Sprintf("helm upgrade %s %s%s", o.ReleaseName, o.Chart, additionalFlags)
-	stdout, stderr, err := Capture(command)
+	stdout, stderr, err := r.DeprecatedCapture(command)
 	if err != nil || len(stderr) != 0 {
 		return fmt.Errorf(string(stderr))
 	}

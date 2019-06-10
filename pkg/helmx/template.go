@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-func Template(chart string, templateOpts TemplateOpts) error {
+func (r *Runner) Template(chart string, templateOpts TemplateOpts) error {
 	var additionalFlags string
 	additionalFlags += createFlagChain("set", templateOpts.SetValues)
 	additionalFlags += createFlagChain("f", templateOpts.ValuesFiles)
@@ -24,7 +24,7 @@ func Template(chart string, templateOpts TemplateOpts) error {
 	}
 
 	command := fmt.Sprintf("helm template %s%s", chart, additionalFlags)
-	stdout, stderr, err := Capture(command)
+	stdout, stderr, err := r.DeprecatedCapture(command)
 	if err != nil || len(stderr) != 0 {
 		return fmt.Errorf(string(stderr))
 	}
