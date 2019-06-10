@@ -45,7 +45,7 @@ func (o DiffOpts) GetTLSKey() string {
 	return o.TLSKey
 }
 
-type DiffOptionsProvider interface {
+type diffOpts interface {
 	GetSetValues() []string
 	GetValuesFiles() []string
 	GetNamespace() string
@@ -57,7 +57,7 @@ type DiffOptionsProvider interface {
 
 type DiffOption func(*DiffOpts) error
 
-func WithDiffOptions(opts DiffOptionsProvider) DiffOption {
+func DiffWith(opts diffOpts) DiffOption {
 	return func(o *DiffOpts) error {
 		o.SetValues = opts.GetSetValues()
 		o.ValuesFiles = opts.GetValuesFiles()
@@ -81,27 +81,27 @@ func (r *Runner) Diff(release, chart string, opts ...DiffOption) (bool, error) {
 	}
 
 	var additionalFlags string
-	additionalFlags += createFlagChain("set", o.GetSetValues())
-	additionalFlags += createFlagChain("f", o.GetValuesFiles())
+	additionalFlags += createFlagChain("set", o.SetValues)
+	additionalFlags += createFlagChain("f", o.ValuesFiles)
 	additionalFlags += createFlagChain("allow-unreleased", []string{""})
 	additionalFlags += createFlagChain("detailed-exitcode", []string{""})
 	additionalFlags += createFlagChain("context", []string{"3"})
 	additionalFlags += createFlagChain("reset-values", []string{""})
 	additionalFlags += createFlagChain("suppress-secrets", []string{""})
 	if o.GetNamespace() != "" {
-		additionalFlags += createFlagChain("namespace", []string{o.GetNamespace()})
+		additionalFlags += createFlagChain("namespace", []string{o.Namespace})
 	}
 	if o.GetKubeContext() != "" {
-		additionalFlags += createFlagChain("kube-context", []string{o.GetKubeContext()})
+		additionalFlags += createFlagChain("kube-context", []string{o.KubeContext})
 	}
 	if o.GetTLS() {
 		additionalFlags += createFlagChain("tls", []string{""})
 	}
 	if o.GetTLSCert() != "" {
-		additionalFlags += createFlagChain("tls-cert", []string{o.GetTLSCert()})
+		additionalFlags += createFlagChain("tls-cert", []string{o.TLSCert})
 	}
 	if o.GetTLSKey() != "" {
-		additionalFlags += createFlagChain("tls-key", []string{o.GetTLSKey()})
+		additionalFlags += createFlagChain("tls-key", []string{o.TLSKey})
 	}
 
 	command := fmt.Sprintf("helm diff upgrade %s %s%s", release, chart, additionalFlags)

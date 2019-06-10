@@ -17,7 +17,33 @@ type AdoptOpts struct {
 	Out io.Writer
 }
 
-func (r *Runner) Adopt(tillerNs, release, namespace string, resources []string) error {
+type AdoptOption func(*AdoptOpts) error
+
+func AdoptTillerNamespace(tillerNs string) AdoptOption {
+	return func(o *AdoptOpts) error {
+		o.TillerNamespace = tillerNs
+		return nil
+	}
+}
+
+func AdoptNamespace(ns string) AdoptOption {
+	return func(o *AdoptOpts) error {
+		o.Namespace = ns
+		return nil
+	}
+}
+
+func (r *Runner) Adopt(release string, resources []string, opts ...AdoptOption) error {
+	o := &AdoptOpts{}
+	for i := range opts {
+		if err := opts[i](o); err != nil {
+			return err
+		}
+	}
+
+	tillerNs := o.TillerNamespace
+	namespace := o.Namespace
+
 	storage, err := releasetool.NewConfigMapBackedReleaseTool(tillerNs)
 	if err != nil {
 		return err

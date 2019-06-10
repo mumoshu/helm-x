@@ -102,7 +102,12 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 			upOpts.Chart = tempDir
 
 			if len(upOpts.Adopt) > 0 {
-				if err := helmx.New().Adopt(upOpts.TillerNamespace, release, upOpts.Namespace, upOpts.Adopt); err != nil {
+				if err := helmx.New().Adopt(
+					release,
+					upOpts.Adopt,
+					helmx.AdoptTillerNamespace(upOpts.TillerNamespace),
+					helmx.AdoptNamespace(upOpts.Namespace),
+				); err != nil {
 					return err
 				}
 			}
@@ -228,7 +233,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 				defer os.RemoveAll(tempDir)
 			}
 
-			changed, err := helmx.New().Diff(release, tempDir, helmx.WithDiffOptions(diffOpts))
+			changed, err := helmx.New().Diff(release, tempDir, helmx.DiffWith(diffOpts))
 			if err != nil {
 				cmd.SilenceUsage = true
 				return err
@@ -277,7 +282,7 @@ So that the full command looks like:
 			tillerNs := adoptOpts.TillerNamespace
 			resources := args[1:]
 
-			return helmx.New().Adopt(tillerNs, release, adoptOpts.Namespace, resources)
+			return helmx.New().Adopt(release, resources, helmx.AdoptTillerNamespace(tillerNs), helmx.AdoptNamespace(adoptOpts.Namespace))
 		},
 	}
 	f := cmd.Flags()
