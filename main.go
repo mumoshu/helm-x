@@ -228,7 +228,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 				defer os.RemoveAll(tempDir)
 			}
 
-			changed, err := helmx.New().Diff(release, tempDir, *diffOpts)
+			changed, err := helmx.New().Diff(release, tempDir, helmx.WithDiffOptions(diffOpts))
 			if err != nil {
 				cmd.SilenceUsage = true
 				return err

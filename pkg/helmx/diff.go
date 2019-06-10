@@ -55,8 +55,31 @@ type DiffOptionsProvider interface {
 	GetTLSKey() string
 }
 
+type DiffOption func(*DiffOpts) error
+
+func WithDiffOptions(opts DiffOptionsProvider) DiffOption {
+	return func(o *DiffOpts) error {
+		o.SetValues = opts.GetSetValues()
+		o.ValuesFiles = opts.GetValuesFiles()
+		o.Namespace = opts.GetNamespace()
+		o.KubeContext = opts.GetKubeContext()
+		o.TLS = opts.GetTLS()
+		o.TLSCert = opts.GetTLSCert()
+		o.TLSKey = opts.GetTLSKey()
+		return nil
+	}
+}
+
 // Diff returns true when the diff succeeds and changes are detected.
-func (r *Runner) Diff(release, chart string, o DiffOptionsProvider) (bool, error) {
+func (r *Runner) Diff(release, chart string, opts ...DiffOption) (bool, error) {
+	o := &DiffOpts{}
+
+	for i := range opts {
+		if err := opts[i](o); err != nil {
+			return false, err
+		}
+	}
+
 	var additionalFlags string
 	additionalFlags += createFlagChain("set", o.GetSetValues())
 	additionalFlags += createFlagChain("f", o.GetValuesFiles())

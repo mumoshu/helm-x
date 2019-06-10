@@ -25,7 +25,7 @@ func New(opts ...Option) *Runner {
 	cs := cmdsite.New()
 	cs.RunCmd = DefaultRunCommand
 	r := &Runner{
-		commander: cmdsite.New(),
+		commander: cs,
 	}
 	for i := range opts {
 		if err := opts[i](r); err != nil {
