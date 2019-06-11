@@ -14,7 +14,7 @@ jobs:
         - go-mod-cache-v1-{{ checksum "./go.sum" }}
         - go-mod-cache-v1-
     - run: go mod download
-    - run: make test
+    - run: make helm test
     - save_cache:
         key: go-mod-cache-v1-{{ checksum "./go.sum" }}
         paths:

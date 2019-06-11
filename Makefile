@@ -6,6 +6,12 @@ VERSION := $(shell sed -n -e 's/version:[ "]*\([^"]*\).*/\1/p' plugin.yaml)
 DIST := $(CURDIR)/_dist
 LDFLAGS := "-X main.Version=${VERSION}"
 
+.PHONY: helm
+helm:
+	curl -LO https://git.io/get_helm.sh
+	chmod 700 get_helm.sh
+	./get_helm.sh
+
 .PHONY: install
 install: build
 	mkdir -p $(HELM_PLUGIN_DIR)/bin
