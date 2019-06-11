@@ -186,7 +186,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 	renderOpts.ChartifyOpts = chartifyOptsFromFlags(f)
 
 	f.StringVar(&release, "name", "release-name", "release name (default \"release-name\")")
-	f.StringVar(&renderOpts.TillerNamespace, "tiller-namsepace", "kube-system", "Namespace in which release confgimap/secret objects reside")
+	f.StringVar(&renderOpts.TillerNamespace, "tiller-namespace", "kube-system", "Namespace in which release confgimap/secret objects reside")
 	f.BoolVar(&renderOpts.IncludeReleaseConfigmap, "include-release-configmap", false, "turn the result into a proper helm release, by removing hooks from the manifest, and including a helm release configmap/secret that should otherwise created by \"helm [upgrade|install]\"")
 	f.BoolVar(&renderOpts.IncludeReleaseSecret, "include-release-secret", false, "turn the result into a proper helm release, by removing hooks from the manifest, and including a helm release configmap/secret that should otherwise created by \"helm [upgrade|install]\"")
 
