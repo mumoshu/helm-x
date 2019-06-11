@@ -14,10 +14,13 @@ type DiffOpts struct {
 
 	kubeConfig string
 
+	AllowUnreleased  bool
+	DetailedExitcode bool
+
 	Out io.Writer
 }
 
-func (o DiffOpts) GetSetValues() []string {
+/*func (o DiffOpts) GetSetValues() []string {
 	return o.SetValues
 }
 
@@ -55,10 +58,6 @@ type diffOptsProvider interface {
 	GetTLSKey() string
 }
 
-type DiffOption interface {
-	SetDiffOption(*DiffOpts) error
-}
-
 type diffOptsSetter struct {
 	o diffOptsProvider
 }
@@ -75,13 +74,17 @@ func (s *diffOptsSetter) SetDiffOption(o *DiffOpts) error {
 	return nil
 }
 
+func WithDiffOpts(opts diffOptsProvider) DiffOption {
+	return &diffOptsSetter{o: opts}
+}*/
+
+type DiffOption interface {
+	SetDiffOption(*DiffOpts) error
+}
+
 func (s *DiffOpts) SetDiffOption(o *DiffOpts) error {
 	*o = *s
 	return nil
-}
-
-func WithDiffOpts(opts diffOptsProvider) DiffOption {
-	return &diffOptsSetter{o: opts}
 }
 
 // Diff returns true when the diff succeeds and changes are detected.
@@ -102,20 +105,26 @@ func (r *Runner) Diff(release, chart string, opts ...DiffOption) (bool, error) {
 	additionalFlags += createFlagChain("context", []string{"3"})
 	additionalFlags += createFlagChain("reset-values", []string{""})
 	additionalFlags += createFlagChain("suppress-secrets", []string{""})
-	if o.GetNamespace() != "" {
+	if o.Namespace != "" {
 		additionalFlags += createFlagChain("namespace", []string{o.Namespace})
 	}
-	if o.GetKubeContext() != "" {
+	if o.KubeContext != "" {
 		additionalFlags += createFlagChain("kube-context", []string{o.KubeContext})
 	}
-	if o.GetTLS() {
+	if o.TLS {
 		additionalFlags += createFlagChain("tls", []string{""})
 	}
-	if o.GetTLSCert() != "" {
+	if o.TLSCert != "" {
 		additionalFlags += createFlagChain("tls-cert", []string{o.TLSCert})
 	}
-	if o.GetTLSKey() != "" {
+	if o.TLSKey != "" {
 		additionalFlags += createFlagChain("tls-key", []string{o.TLSKey})
+	}
+	if o.AllowUnreleased {
+		additionalFlags += createFlagChain("allow-unreleased", []string{""})
+	}
+	if o.DetailedExitcode {
+		additionalFlags += createFlagChain("detailed-exitcode", []string{""})
 	}
 
 	command := fmt.Sprintf("helm diff upgrade %s %s%s", release, chart, additionalFlags)

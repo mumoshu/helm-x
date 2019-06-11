@@ -26,7 +26,7 @@ func main() {
 	cmd.SilenceErrors = true
 	if err := cmd.Execute(); err != nil {
 		helmFallback(err)
-		klog.Fatalf("Failed to execute command: %v", err)
+		klog.Fatalf("%v", err)
 	}
 }
 
@@ -131,6 +131,8 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 
 	f.BoolVar(&upOpts.Install, "install", installByDefault, "install the release if missing")
 
+	f.BoolVar(&upOpts.ResetValues, "reset-values", false, "reset the values to the ones built into the chart and merge in any new values")
+
 	f.StringSliceVarP(&upOpts.Adopt, "adopt", "", []string{}, "adopt existing k8s resources before apply")
 
 	return cmd
@@ -196,10 +198,17 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 
 // NewDiffCommand represents the diff command
 func NewDiffCommand(out io.Writer) *cobra.Command {
+	diff := newDiffCommand("diff", out)
+	upgrade := newDiffCommand("upgrade", out)
+	diff.AddCommand(upgrade)
+	return diff
+}
+
+func newDiffCommand(use string, out io.Writer) *cobra.Command {
 	diffOpts := &helmx.DiffOpts{Out: out}
 
 	cmd := &cobra.Command{
-		Use:   "diff [RELEASE] [DIR_OR_CHART]",
+		Use:   fmt.Sprintf("%s [RELEASE] [DIR_OR_CHART]", use),
 		Short: "Show a diff explaining what `helm x apply` would change",
 		Long: `Show a diff explaining what ` + "`helm x apply`" + ` would change.
 
@@ -249,6 +258,9 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 
 	diffOpts.ChartifyOpts = chartifyOptsFromFlags(f)
 	diffOpts.ClientOpts = clientOptsFromFlags(f)
+
+	f.BoolVar(&diffOpts.AllowUnreleased, "allow-unreleased", false, "enables diffing of releases that are not yet deployed via Helm")
+	f.BoolVar(&diffOpts.DetailedExitcode, "detailed-exitcode", false, "return a non-zero exit code when there are changes")
 
 	//f.StringVar(&u.release, "name", "", "release name (default \"release-name\")")
 

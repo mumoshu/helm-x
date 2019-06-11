@@ -26,7 +26,8 @@ func helmFallback(err error) {
 			if args[0] == "x" {
 				args = args[1:]
 			}
-			klog.Infof("helm-x: executing helm %s\n", strings.Join(args, " "))
+			args = append([]string{"helm"}, args...)
+			klog.Infof("helm-x: executing %s\n", strings.Join(args, " "))
 			helmBin, err := exec.LookPath("helm")
 			if err != nil {
 				klog.Errorf("%v", err)

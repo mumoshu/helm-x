@@ -13,6 +13,8 @@ type UpgradeOpts struct {
 	Install bool
 	DryRun  bool
 
+	ResetValues bool
+
 	kubeConfig string
 
 	Adopt []string
@@ -27,6 +29,9 @@ func (r *Runner) Upgrade(release, chart string, o UpgradeOpts) error {
 	additionalFlags += createFlagChain("timeout", []string{fmt.Sprintf("%d", o.Timeout)})
 	if o.Install {
 		additionalFlags += createFlagChain("install", []string{""})
+	}
+	if o.ResetValues {
+		additionalFlags += createFlagChain("reset-values", []string{""})
 	}
 	if o.Namespace != "" {
 		additionalFlags += createFlagChain("namespace", []string{o.Namespace})
