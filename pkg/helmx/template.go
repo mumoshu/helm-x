@@ -6,7 +6,8 @@ import (
 	"strings"
 )
 
-func (r *Runner) Template(release, chart string, templateOpts TemplateOpts) error {
+// Render generates K8s manifests for the named release from the chart, and prints the resulting manifests to STDOUT
+func (r *Runner) Render(release, chart string, templateOpts RenderOpts) error {
 	var additionalFlags string
 	additionalFlags += createFlagChain("set", templateOpts.SetValues)
 	additionalFlags += createFlagChain("f", templateOpts.ValuesFiles)

@@ -18,8 +18,8 @@ func TillerNamespace(tillerNs string) *tillerNamespace {
 	return &tillerNamespace{tillerNs: tillerNs}
 }
 
-var _ adoptOption = &tillerNamespace{}
-var _ diffOption = &tillerNamespace{}
+var _ AdoptOption = &tillerNamespace{}
+var _ DiffOption = &tillerNamespace{}
 
 type namespace struct {
 	ns string
@@ -39,5 +39,5 @@ func Namespace(ns string) *namespace {
 	return &namespace{ns: ns}
 }
 
-var _ adoptOption = &namespace{}
-var _ diffOption = &namespace{}
+var _ AdoptOption = &namespace{}
+var _ DiffOption = &namespace{}

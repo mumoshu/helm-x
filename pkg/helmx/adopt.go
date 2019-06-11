@@ -17,11 +17,11 @@ type AdoptOpts struct {
 	Out io.Writer
 }
 
-type adoptOption interface {
+type AdoptOption interface {
 	SetAdoptOption(*AdoptOpts) error
 }
 
-func (r *Runner) Adopt(release string, resources []string, opts ...adoptOption) error {
+func (r *Runner) Adopt(release string, resources []string, opts ...AdoptOption) error {
 	o := &AdoptOpts{}
 	for i := range opts {
 		if err := opts[i].SetAdoptOption(o); err != nil {

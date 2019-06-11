@@ -44,7 +44,7 @@ type ChartifyOpts struct {
 	StrategicMergePatches []string
 }
 
-type chartifyOption interface {
+type ChartifyOption interface {
 	SetChartifyOption(opts *ChartifyOpts) error
 }
 
@@ -57,7 +57,12 @@ func (s *chartifyOptsSetter) SetChartifyOption(opts *ChartifyOpts) error {
 	return nil
 }
 
-func WithChartifyOpts(opts *ChartifyOpts) chartifyOption {
+func (s *ChartifyOpts) SetChartifyOption(opts *ChartifyOpts) error {
+	*opts = *s
+	return nil
+}
+
+func WithChartifyOpts(opts *ChartifyOpts) ChartifyOption {
 	return &chartifyOptsSetter{
 		o: opts,
 	}
@@ -68,7 +73,7 @@ func WithChartifyOpts(opts *ChartifyOpts) chartifyOption {
 //
 // Parameters:
 // * `release` is the name of Helm release being installed
-func (r *Runner) Chartify(release, dirOrChart string, opts ...chartifyOption) (string, error) {
+func (r *Runner) Chartify(release, dirOrChart string, opts ...ChartifyOption) (string, error) {
 	u := &ChartifyOpts{}
 
 	tempDir, err := r.copyToTempDir(dirOrChart)
@@ -95,12 +100,11 @@ func (r *Runner) Chartify(release, dirOrChart string, opts ...chartifyOption) (s
 		}
 
 		templateOptions := templateOptions{
-			files:       templateFiles,
 			namespace:   u.Namespace,
 			values:      u.SetValues,
 			valuesFiles: u.ValuesFiles,
 		}
-		if err := r.template(release, tempDir, templateOptions); err != nil {
+		if err := r.templateEach(release, tempDir, templateFiles, templateOptions); err != nil {
 			return "", err
 		}
 
@@ -334,12 +338,11 @@ func (r *Runner) Chartify(release, dirOrChart string, opts ...chartifyOption) (s
 			}
 
 			templateOptions := templateOptions{
-				files:       templateFiles,
 				namespace:   u.Namespace,
 				values:      u.SetValues,
 				valuesFiles: u.ValuesFiles,
 			}
-			if err := r.template(release, subchartDir, templateOptions); err != nil {
+			if err := r.templateEach(release, subchartDir, templateFiles, templateOptions); err != nil {
 				return "", err
 			}
 

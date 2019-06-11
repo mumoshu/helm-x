@@ -86,7 +86,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 			release := args[0]
 			dir := args[1]
 
-			tempLocalChartDir, err := helmx.New().Chartify(release, dir, helmx.WithChartifyOpts(upOpts.ChartifyOpts))
+			tempLocalChartDir, err := helmx.New().Chartify(release, dir, upOpts.ChartifyOpts)
 			if err != nil {
 				cmd.SilenceUsage = true
 				return err
@@ -136,7 +136,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 
 // NewTemplateCommand represents the template command
 func NewTemplateCommand(out io.Writer) *cobra.Command {
-	templateOpts := &helmx.TemplateOpts{Out: out}
+	renderOpts := &helmx.RenderOpts{Out: out}
 
 	var release string
 
@@ -162,18 +162,18 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 		RunE: func(cmd *cobra.Command, args []string) error {
 			dir := args[0]
 
-			tempLocalChartDir, err := helmx.New().Chartify(release, dir, helmx.WithChartifyOpts(templateOpts.ChartifyOpts))
+			tempLocalChartDir, err := helmx.New().Chartify(release, dir, renderOpts.ChartifyOpts)
 			if err != nil {
 				cmd.SilenceUsage = true
 				return err
 			}
 
-			if !templateOpts.Debug {
+			if !renderOpts.Debug {
 				klog.Infof("helm chart has been written to %s for you to see. please remove it afterwards", tempLocalChartDir)
 				defer os.RemoveAll(tempLocalChartDir)
 			}
 
-			if err := helmx.New().Template(release, tempLocalChartDir, *templateOpts); err != nil {
+			if err := helmx.New().Render(release, tempLocalChartDir, *renderOpts); err != nil {
 				cmd.SilenceUsage = true
 				return err
 			}
@@ -183,12 +183,12 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 	}
 	f := cmd.Flags()
 
-	templateOpts.ChartifyOpts = chartifyOptsFromFlags(f)
+	renderOpts.ChartifyOpts = chartifyOptsFromFlags(f)
 
 	f.StringVar(&release, "name", "release-name", "release name (default \"release-name\")")
-	f.StringVar(&templateOpts.TillerNamespace, "tiller-namsepace", "kube-system", "Namespace in which release confgimap/secret objects reside")
-	f.BoolVar(&templateOpts.IncludeReleaseConfigmap, "include-release-configmap", false, "turn the result into a proper helm release, by removing hooks from the manifest, and including a helm release configmap/secret that should otherwise created by \"helm [upgrade|install]\"")
-	f.BoolVar(&templateOpts.IncludeReleaseSecret, "include-release-secret", false, "turn the result into a proper helm release, by removing hooks from the manifest, and including a helm release configmap/secret that should otherwise created by \"helm [upgrade|install]\"")
+	f.StringVar(&renderOpts.TillerNamespace, "tiller-namsepace", "kube-system", "Namespace in which release confgimap/secret objects reside")
+	f.BoolVar(&renderOpts.IncludeReleaseConfigmap, "include-release-configmap", false, "turn the result into a proper helm release, by removing hooks from the manifest, and including a helm release configmap/secret that should otherwise created by \"helm [upgrade|install]\"")
+	f.BoolVar(&renderOpts.IncludeReleaseSecret, "include-release-secret", false, "turn the result into a proper helm release, by removing hooks from the manifest, and including a helm release configmap/secret that should otherwise created by \"helm [upgrade|install]\"")
 
 	return cmd
 }
@@ -220,18 +220,19 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 			release := args[0]
 			dir := args[1]
 
-			tempDir, err := helmx.New().Chartify(release, dir, helmx.WithChartifyOpts(diffOpts.ChartifyOpts))
+			tempDir, err := helmx.New().Chartify(release, dir, diffOpts.ChartifyOpts)
 			if err != nil {
 				cmd.SilenceUsage = true
 				return err
 			}
 
-			if !diffOpts.Debug {
+			if diffOpts.Debug {
 				klog.Infof("helm chart has been written to %s for you to see. please remove it afterwards", tempDir)
+			} else {
 				defer os.RemoveAll(tempDir)
 			}
 
-			changed, err := helmx.New().Diff(release, tempDir, helmx.WithDiffOpts(diffOpts))
+			changed, err := helmx.New().Diff(release, tempDir, diffOpts)
 			if err != nil {
 				cmd.SilenceUsage = true
 				return err

@@ -55,7 +55,7 @@ type diffOptsProvider interface {
 	GetTLSKey() string
 }
 
-type diffOption interface {
+type DiffOption interface {
 	SetDiffOption(*DiffOpts) error
 }
 
@@ -75,12 +75,17 @@ func (s *diffOptsSetter) SetDiffOption(o *DiffOpts) error {
 	return nil
 }
 
-func WithDiffOpts(opts diffOptsProvider) diffOption {
+func (s *DiffOpts) SetDiffOption(o *DiffOpts) error {
+	*o = *s
+	return nil
+}
+
+func WithDiffOpts(opts diffOptsProvider) DiffOption {
 	return &diffOptsSetter{o: opts}
 }
 
 // Diff returns true when the diff succeeds and changes are detected.
-func (r *Runner) Diff(release, chart string, opts ...diffOption) (bool, error) {
+func (r *Runner) Diff(release, chart string, opts ...DiffOption) (bool, error) {
 	o := &DiffOpts{}
 
 	for i := range opts {
