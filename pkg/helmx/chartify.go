@@ -286,7 +286,7 @@ func (r *Runner) Chartify(release, dirOrChart string, opts ...ChartifyOption) (s
 			generatedManifestFiles = []string{patchedAndConcatenated}
 
 			final := filepath.Join(tempDir, "templates", "helmx.all.yaml")
-			klog.Info("copying %s to %s", patchedAndConcatenated, final)
+			klog.Infof("copying %s to %s", patchedAndConcatenated, final)
 			if err := CopyFile(patchedAndConcatenated, final); err != nil {
 				return "", err
 			}
