@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"github.com/mumoshu/helm-x/pkg/cmdsite"
+	"github.com/mumoshu/helm-x/pkg/helmx"
 	"k8s.io/klog"
 	"os"
 	"os/exec"
@@ -10,7 +12,7 @@ import (
 	"syscall"
 )
 
-func helmFallback(err error) {
+func helmFallback(args []string, err error) {
 	errMsg := err.Error()
 	if strings.HasPrefix(errMsg, `unknown command "`) {
 		pattern := regexp.MustCompile(fmt.Sprintf(`unknown command "(.*)" for "%s"`, CommandName))
@@ -21,13 +23,9 @@ func helmFallback(err error) {
 		subcmdBytes := matches[1]
 		subcmd := string(subcmdBytes)
 		switch subcmd {
-		case "completion", "create", "delete", "dependency", "fetch", "get", "helm-git", "help", "history", "home", "init", "inspect", "list", "logs", "package", "plugin", "repo", "reset", "rollback", "search", "serve", "status", "test", "upgrade", "verify", "version":
-			args := os.Args[1:]
-			if args[0] == "x" {
-				args = args[1:]
-			}
+		case "completion", "create", "delete", "fetch", "get", "helm-git", "help", "history", "home", "init", "inspect", "list", "logs", "package", "plugin", "repo", "reset", "rollback", "search", "serve", "status", "test", "upgrade", "verify", "version":
 			args = append([]string{"helm"}, args...)
-			klog.Infof("helm-x: executing %s\n", strings.Join(args, " "))
+			klog.V(1).Infof("helm-x: executing %s\n", strings.Join(args, " "))
 			helmBin, err := exec.LookPath("helm")
 			if err != nil {
 				klog.Errorf("%v", err)
@@ -36,6 +34,27 @@ func helmFallback(err error) {
 			execErr := syscall.Exec(helmBin, args, os.Environ())
 			if execErr != nil {
 				panic(execErr)
+			}
+		case "dependency":
+			args = append([]string{"helm"}, args...)
+			klog.V(1).Infof("helm-x: executing %s\n", strings.Join(args, " "))
+			helmBin, err := exec.LookPath("helm")
+			if err != nil {
+				klog.Errorf("%v", err)
+				os.Exit(1)
+			}
+
+			cs := cmdsite.New()
+			cs.RunCmd = helmx.DefaultRunCommand
+
+			_, stderr, err := cs.CaptureBytes(helmBin, args[1:])
+			if err != nil {
+				if stderr != nil && strings.Contains(string(stderr), "Error: chart metadata (Chart.yaml) missing") {
+					os.Exit(0)
+				} else {
+					fmt.Fprintln(os.Stderr, string(stderr))
+					os.Exit(1)
+				}
 			}
 		}
 	}

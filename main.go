@@ -3,12 +3,14 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"github.com/mumoshu/helm-x/pkg/helmx"
 	"github.com/mumoshu/helm-x/pkg/releasetool"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"io"
+	"io/ioutil"
 	"k8s.io/klog"
 	"os"
 
@@ -20,12 +22,29 @@ var Version string
 var CommandName = "helm-x"
 
 func main() {
-	klog.InitFlags(nil)
-
 	cmd := NewRootCmd()
 	cmd.SilenceErrors = true
+
+	// See https://flowerinthenight.com/blog/2019/02/05/golang-cobra-klog
+	fs := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
+	// Suppress usage flag.ErrHelp
+	fs.SetOutput(ioutil.Discard)
+	klog.InitFlags(fs)
+	args := append([]string{}, os.Args[1:]...)
+	verbosityFromEnv := os.Getenv("HELM_X_VERBOSITY")
+	if verbosityFromEnv != "" {
+		// -v LEVEL must preceed the remaining args to be parsed by fs
+		args = append([]string{"-v", verbosityFromEnv}, args...)
+	}
+	if err := fs.Parse(args); err != nil && err != flag.ErrHelp {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	remainings := fs.Args()
+	pflag.CommandLine.AddGoFlagSet(fs)
+
 	if err := cmd.Execute(); err != nil {
-		helmFallback(err)
+		helmFallback(remainings, err)
 		klog.Fatalf("%v", err)
 	}
 }
@@ -173,8 +192,9 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 			}
 
 			if !templateOpts.Debug {
-				klog.Infof("helm chart has been written to %s for you to see. please remove it afterwards", tempLocalChartDir)
 				defer os.RemoveAll(tempLocalChartDir)
+			} else {
+				klog.Infof("helm chart has been written to %s for you to see. please remove it afterwards", tempLocalChartDir)
 			}
 
 			if err := helmx.New().Render(release, tempLocalChartDir, *templateOpts); err != nil {
@@ -372,7 +392,7 @@ func chartifyOptsFromFlags(f *pflag.FlagSet) *helmx.ChartifyOpts {
 	f.StringVar(&chartifyOpts.TillerNamespace, "tiller-namespace", "kube-system", "Namespace to in which release configmap/secret objects reside")
 	f.StringVar(&chartifyOpts.ChartVersion, "version", "", "specify the exact chart version to use. If this is not specified, the latest version is used")
 
-	f.BoolVar(&chartifyOpts.Debug, "debug", false, "enable verbose output")
+	f.BoolVar(&chartifyOpts.Debug, "debug", os.Getenv("HELM_X_DEBUG") == "on", "enable verbose output")
 
 	return chartifyOpts
 }

@@ -2,8 +2,11 @@ package helmx
 
 import (
 	"fmt"
-	"io/ioutil"
+	//"io/ioutil"
+	"k8s.io/klog"
+	"os"
 	"path/filepath"
+	"strings"
 )
 
 type ReplaceWithRenderedOpts struct {
@@ -23,13 +26,13 @@ type ReplaceWithRenderedOpts struct {
 	ChartVersion string
 }
 
-func (r *Runner) ReplaceWithRendered(name, chart string, files []string, o ReplaceWithRenderedOpts) error {
+func (r *Runner) ReplaceWithRendered(name, chart string, files []string, o ReplaceWithRenderedOpts) ([]string, error) {
 	var additionalFlags string
 	additionalFlags += createFlagChain("set", o.SetValues)
 	defaultValuesPath := filepath.Join(chart, "values.yaml")
 	exists, err := exists(defaultValuesPath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if exists {
 		additionalFlags += createFlagChain("f", []string{defaultValuesPath})
@@ -42,16 +45,38 @@ func (r *Runner) ReplaceWithRendered(name, chart string, files []string, o Repla
 		additionalFlags += createFlagChain("version", []string{o.ChartVersion})
 	}
 
-	for _, file := range files {
-		command := fmt.Sprintf("helm template --debug=%v %s --name %s -x %s%s", o.Debug, chart, name, file, additionalFlags)
-		stdout, stderr, err := r.DeprecatedCaptureBytes(command)
-		if err != nil || len(stderr) != 0 {
-			return fmt.Errorf(string(stderr))
+	klog.Infof("options: %v", o)
+
+	dir := filepath.Join(chart, "helmx.1.rendered")
+	if err := os.Mkdir(dir, 0755); err != nil {
+		return nil, err
+	}
+
+	command := fmt.Sprintf("helm template --debug=%v %s --name %s%s --output-dir %s", o.Debug, chart, name, additionalFlags, dir)
+	stdout, stderr, err := r.DeprecatedCaptureBytes(command)
+	if err != nil {
+		if len(stderr) != 0 {
+			return nil, fmt.Errorf(string(stderr))
 		}
-		if err := ioutil.WriteFile(file, stdout, 0644); err != nil {
-			return err
+		return nil, fmt.Errorf("unexpected error with no stderr contents: %s", stdout)
+	}
+	results := []string{}
+	lines := strings.Split(string(stdout), "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "wrote ") {
+			results = append(results, strings.Split(line, "wrote ")[1])
+		}
+	}
+	if len(results) == 0 {
+		return nil, fmt.Errorf("invalid state: no files rendered")
+	}
+
+	for _, f := range files {
+		klog.Infof("removing %s", f)
+		if err := os.Remove(f); err != nil {
+			return nil, err
 		}
 	}
 
-	return nil
+	return results, nil
 }

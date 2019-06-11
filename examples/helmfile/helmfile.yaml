@@ -1,3 +1,50 @@
 releases:
-- name: envoy
-  chart: stable/envoy
+- name: kustomize
+  chart: ../kustomize
+- name: manifests
+  chart: ../manifests
+- name: foo
+  chart: incubator/raw
+  dependencies:
+  - alias: bar
+    chart: incubator/raw
+  values:
+  - values.yaml
+  - bar:
+      enabled: true
+      resources:
+      - apiVersion: v1
+        kind: Pod
+        metadata:
+          name: bar
+        spec:
+          containers:
+          - command:
+            - sleep
+            - 1000
+            image: alpine:3.9.4
+            imagePullPolicy: IfNotPresent
+            name: bar
+  jsonPatches:
+  - target:
+      version: v1
+      kind: Pod
+      name: foo
+    patch:
+    - op: replace
+      path: /spec/containers/0/command
+      value:
+      - sleep
+      - "123"
+  strategicMergePatches:
+  - apiVersion: v1
+    kind: Pod
+    metadata:
+      name: bar
+    spec:
+      containers:
+      - name: bar
+        command:
+        - sleep
+        - "234"
+  

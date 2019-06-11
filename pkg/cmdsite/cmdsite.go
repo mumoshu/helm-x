@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"io"
 	"k8s.io/klog"
-	"log"
 	"os/exec"
 	"strings"
 )
@@ -45,7 +44,7 @@ func (r *CommandSite) CaptureStrings(binary string, args []string) (string, stri
 }
 
 func (r *CommandSite) CaptureBytes(binary string, args []string) ([]byte, []byte, error) {
-	klog.Infof("running %s %s", binary, strings.Join(args, " "))
+	klog.V(1).Infof("running %s %s", binary, strings.Join(args, " "))
 	_, err := exec.LookPath(binary)
 	if err != nil {
 		return nil, nil, err
@@ -54,8 +53,7 @@ func (r *CommandSite) CaptureBytes(binary string, args []string) ([]byte, []byte
 	var stdout, stderr bytes.Buffer
 	err = r.RunCommand(binary, args, &stdout, &stderr)
 	if err != nil {
-		log.Print(stderr.String())
-		log.Fatal(err)
+		klog.V(1).Info(stderr.String())
 	}
 	return stdout.Bytes(), stderr.Bytes(), err
 }

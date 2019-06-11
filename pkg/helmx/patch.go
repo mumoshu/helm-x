@@ -35,6 +35,8 @@ func (r *Runner) Patch(tempDir string, generatedManifestFiles []string, opts ...
 		}
 	}
 
+	klog.Infof("patching files: %v", generatedManifestFiles)
+
 	kustomizationYamlContent := `kind: ""
 apiversion: ""
 resources:
@@ -134,7 +136,7 @@ resources:
 
 	klog.Infof("generated and using kustomization.yaml:\n%s", kustomizationYamlContent)
 
-	renderedFile := filepath.Join(tempDir, "templates/rendered.yaml")
+	renderedFile := filepath.Join(tempDir, "helmx.2.patched.yaml")
 	klog.Infof("generating %s", renderedFile)
 	_, err := r.Run("kustomize", "build", tempDir, "--output", renderedFile)
 	if err != nil {

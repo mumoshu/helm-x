@@ -38,8 +38,7 @@ type ChartifyOpts struct {
 
 	AdhocChartDependencies []string
 
-	JsonPatches []string
-
+	JsonPatches           []string
 	StrategicMergePatches []string
 }
 
@@ -75,6 +74,12 @@ func WithChartifyOpts(opts *ChartifyOpts) ChartifyOption {
 func (r *Runner) Chartify(release, dirOrChart string, opts ...ChartifyOption) (string, error) {
 	u := &ChartifyOpts{}
 
+	for i := range opts {
+		if err := opts[i].SetChartifyOption(u); err != nil {
+			return "", err
+		}
+	}
+
 	tempDir, err := r.copyToTempDir(dirOrChart)
 	if err != nil {
 		return "", err
@@ -86,30 +91,6 @@ func (r *Runner) Chartify(release, dirOrChart string, opts ...ChartifyOption) (s
 	}
 
 	generatedManifestFiles := []string{}
-
-	if isChart {
-		templateFileOptions := SearchFileOpts{
-			basePath:     tempDir,
-			matchSubPath: "templates",
-			fileType:     "yaml",
-		}
-		templateFiles, err := r.SearchFiles(templateFileOptions)
-		if err != nil {
-			return "", err
-		}
-
-		templateOptions := ReplaceWithRenderedOpts{
-			Namespace:    u.Namespace,
-			SetValues:    u.SetValues,
-			ValuesFiles:  u.ValuesFiles,
-			ChartVersion: u.ChartVersion,
-		}
-		if err := r.ReplaceWithRendered(release, tempDir, templateFiles, templateOptions); err != nil {
-			return "", err
-		}
-
-		generatedManifestFiles = append([]string{}, templateFiles...)
-	}
 
 	dstTemplatesDir := filepath.Join(tempDir, "templates")
 	dirExists, err := exists(dstTemplatesDir)
@@ -149,13 +130,7 @@ func (r *Runner) Chartify(release, dirOrChart string, opts ...ChartifyOption) (s
 		if err != nil {
 			return "", err
 		}
-		for _, f := range manifestFiles {
-			dst := filepath.Join(dstTemplatesDir, filepath.Base(f))
-			if err := os.Rename(f, dst); err != nil {
-				return "", err
-			}
-			generatedManifestFiles = append(generatedManifestFiles, dst)
-		}
+		generatedManifestFiles = append(generatedManifestFiles, manifestFiles...)
 	}
 
 	var requirementsYamlContent string
@@ -164,7 +139,6 @@ func (r *Runner) Chartify(release, dirOrChart string, opts ...ChartifyOption) (s
 		if u.ChartVersion == "" {
 			ver = "1.0.0"
 			klog.Infof("using the default chart version 1.0.0 due to that no ChartVersion is specified")
-			return "", fmt.Errorf("--version is required when applying manifests")
 		}
 		chartyaml := fmt.Sprintf("name: \"%s\"\nversion: %s\nappVersion: %s\n", release, ver, ver)
 		if err := ioutil.WriteFile(filepath.Join(tempDir, "Chart.yaml"), []byte(chartyaml), 0644); err != nil {
@@ -266,17 +240,9 @@ func (r *Runner) Chartify(release, dirOrChart string, opts ...ChartifyOption) (s
 			return "", err
 		}
 
-		for _, match := range matches {
-			chartsDir := filepath.Join(tempDir, "charts")
-
-			klog.Infof("unarchiving subchart %s to %s", match, chartsDir)
-			subchartDir, err := r.untarUnderDir(match, chartsDir)
-			if err != nil {
-				return "", fmt.Errorf("fetchAndUntarUnderDir: %v", err)
-			}
-
+		if isChart || len(matches) > 0 {
 			templateFileOptions := SearchFileOpts{
-				basePath:     subchartDir,
+				basePath:     tempDir,
 				matchSubPath: "templates",
 				fileType:     "yaml",
 			}
@@ -285,21 +251,26 @@ func (r *Runner) Chartify(release, dirOrChart string, opts ...ChartifyOption) (s
 				return "", err
 			}
 
-			replaceRenderOpts := ReplaceWithRenderedOpts{
-				Namespace:   u.Namespace,
-				SetValues:   u.SetValues,
-				ValuesFiles: u.ValuesFiles,
+			templateOptions := ReplaceWithRenderedOpts{
+				Debug:        u.Debug,
+				Namespace:    u.Namespace,
+				SetValues:    u.SetValues,
+				ValuesFiles:  u.ValuesFiles,
+				ChartVersion: u.ChartVersion,
 			}
-			if err := r.ReplaceWithRendered(release, subchartDir, templateFiles, replaceRenderOpts); err != nil {
+			generated, err := r.ReplaceWithRendered(release, tempDir, templateFiles, templateOptions)
+			if err != nil {
 				return "", err
 			}
 
-			generatedManifestFiles = append([]string{}, templateFiles...)
+			generatedManifestFiles = generated
 		}
-
-		_ = os.Remove(filepath.Join(tempDir, "requirements.yaml"))
-		_ = os.Remove(filepath.Join(tempDir, "requirements.lock"))
 	}
+
+	// We've already rendered resources from the chart and its subcharts to the helmx.1.rendered directory
+	// No need to double-render them by leaving requirements.yaml/lock
+	_ = os.Remove(filepath.Join(tempDir, "requirements.yaml"))
+	_ = os.Remove(filepath.Join(tempDir, "requirements.lock"))
 
 	{
 		if isChart && (len(u.JsonPatches) > 0 || len(u.StrategicMergePatches) > 0) {
@@ -313,6 +284,22 @@ func (r *Runner) Chartify(release, dirOrChart string, opts ...ChartifyOption) (s
 			}
 
 			generatedManifestFiles = []string{patchedAndConcatenated}
+
+			final := filepath.Join(tempDir, "templates", "helmx.all.yaml")
+			klog.Info("copying %s to %s", patchedAndConcatenated, final)
+			if err := CopyFile(patchedAndConcatenated, final); err != nil {
+				return "", err
+			}
+		} else {
+			dsts := []string{}
+			for i, f := range generatedManifestFiles {
+				dst := filepath.Join(dstTemplatesDir, fmt.Sprintf("%d-%s", i, filepath.Base(f)))
+				if err := os.Rename(f, dst); err != nil {
+					return "", err
+				}
+				dsts = append(dsts, dst)
+			}
+			generatedManifestFiles = dsts
 		}
 	}
 
