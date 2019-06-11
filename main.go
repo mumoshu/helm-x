@@ -6,31 +6,33 @@ import (
 	"fmt"
 	"github.com/mumoshu/helm-x/pkg/helmx"
 	"github.com/mumoshu/helm-x/pkg/releasetool"
+	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"io"
-	"log"
-	"os"
-
-	"github.com/spf13/cobra"
 	"k8s.io/klog"
+	"os"
 
 	"gopkg.in/yaml.v3"
 )
 
 var Version string
 
+var CommandName = "helm-x"
+
 func main() {
 	klog.InitFlags(nil)
 
 	cmd := NewRootCmd()
+	cmd.SilenceErrors = true
 	if err := cmd.Execute(); err != nil {
-		log.Fatal("Failed to execute command")
+		helmFallback(err)
+		klog.Fatalf("Failed to execute command: %v", err)
 	}
 }
 
 func NewRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "helm-x [apply|diff|template|dump|adopt]",
+		Use:     fmt.Sprintf("%s [apply|diff|template|dump|adopt]", CommandName),
 		Short:   "Turn Kubernetes manifests, Kustomization, Helm Chart into Helm release. Sidecar injection supported.",
 		Long:    ``,
 		Version: Version,

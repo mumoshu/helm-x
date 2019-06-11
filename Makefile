@@ -30,7 +30,7 @@ test: build
 
 .PHONY: build
 build:
-	go build -o $(BINARY_NAME) -ldflags $(LDFLAGS) ./main.go
+	go build -o $(BINARY_NAME) -ldflags $(LDFLAGS) ./
 
 .PHONY: dist
 dist:
