@@ -1,7 +1,6 @@
 package helmx
 
 import (
-	"bytes"
 	"fmt"
 	"io/ioutil"
 	"k8s.io/klog"
@@ -100,9 +99,9 @@ func (r *Runner) Chartify(release, dirOrChart string, opts ...ChartifyOption) (s
 		}
 
 		templateOptions := ReplaceWithRenderedOpts{
-			Namespace:   u.Namespace,
-			SetValues:      u.SetValues,
-			ValuesFiles: u.ValuesFiles,
+			Namespace:    u.Namespace,
+			SetValues:    u.SetValues,
+			ValuesFiles:  u.ValuesFiles,
 			ChartVersion: u.ChartVersion,
 		}
 		if err := r.ReplaceWithRendered(release, tempDir, templateFiles, templateOptions); err != nil {
@@ -129,71 +128,14 @@ func (r *Runner) Chartify(release, dirOrChart string, opts ...ChartifyOption) (s
 	}
 
 	if isKustomization {
-		kustomizeOpts := KustomizeOpts{}
-
-		for _, f := range u.ValuesFiles {
-			valsFileContent, err := ioutil.ReadFile(f)
-			if err != nil {
-				return "", err
-			}
-			if err := yaml.Unmarshal(valsFileContent, &kustomizeOpts); err != nil {
-				return "", err
-			}
+		kustomOpts := &KustomizeBuildOpts{
+			ValuesFiles: u.ValuesFiles,
+			SetValues:   u.SetValues,
 		}
-
-		if len(u.SetValues) > 0 {
-			panic("--set is not yet supported for kustomize-based apps! Use -f/--values flag instead.")
-		}
-
-		prevDir, err := os.Getwd()
+		kustomizeFile, err := r.KustomizeBuild(tempDir, kustomOpts)
 		if err != nil {
 			return "", err
 		}
-		defer func() {
-			if err := os.Chdir(prevDir); err != nil {
-				panic(err)
-			}
-		}()
-		if err := os.Chdir(tempDir); err != nil {
-			return "", err
-		}
-
-		if len(kustomizeOpts.Images) > 0 {
-			args := []string{"edit", "set", "image"}
-			for _, image := range kustomizeOpts.Images {
-				args = append(args, image.String())
-			}
-			_, err := r.Run("kustomize", args...)
-			if err != nil {
-				return "", err
-			}
-		}
-		if kustomizeOpts.NamePrefix != "" {
-			_, err := r.Run("kustomize", "edit", "set", "nameprefix", kustomizeOpts.NamePrefix)
-			if err != nil {
-				fmt.Println(err)
-				return "", err
-			}
-		}
-		if kustomizeOpts.NameSuffix != "" {
-			// "--" is there to avoid `namesuffix -acme` to fail due to `-a` being considered as a flag
-			_, err := r.Run("kustomize", "edit", "set", "namesuffix", "--", kustomizeOpts.NameSuffix)
-			if err != nil {
-				return "", err
-			}
-		}
-		if kustomizeOpts.Namespace != "" {
-			_, err := r.Run("kustomize", "edit", "set", "namespace", kustomizeOpts.Namespace)
-			if err != nil {
-				return "", err
-			}
-		}
-		kustomizeFile := filepath.Join(dstTemplatesDir, "kustomized.yaml")
-		out, err := r.Run("kustomize", "-o", kustomizeFile, "build", tempDir)
-		if err != nil {
-			return "", err
-		}
-		fmt.Println(out)
 
 		generatedManifestFiles = append(generatedManifestFiles, kustomizeFile)
 	}
@@ -218,10 +160,13 @@ func (r *Runner) Chartify(release, dirOrChart string, opts ...ChartifyOption) (s
 
 	var requirementsYamlContent string
 	if !isChart {
+		ver := u.ChartVersion
 		if u.ChartVersion == "" {
+			ver = "1.0.0"
+			klog.Infof("using the default chart version 1.0.0 due to that no ChartVersion is specified")
 			return "", fmt.Errorf("--version is required when applying manifests")
 		}
-		chartyaml := fmt.Sprintf("name: \"%s\"\nversion: %s\nappVersion: %s\n", release, u.ChartVersion, u.ChartVersion)
+		chartyaml := fmt.Sprintf("name: \"%s\"\nversion: %s\nappVersion: %s\n", release, ver, ver)
 		if err := ioutil.WriteFile(filepath.Join(tempDir, "Chart.yaml"), []byte(chartyaml), 0644); err != nil {
 			return "", err
 		}
@@ -283,7 +228,7 @@ func (r *Runner) Chartify(release, dirOrChart string, opts ...ChartifyOption) (s
 			}
 		}
 		if repoUrl == "" {
-			return "", fmt.Errorf("no helm list entry found for repository \"%s\"", repo)
+			return "", fmt.Errorf("no helm list entry found for repository \"%s\". please `helm repo add` it!", repo)
 		}
 
 		requirementsYamlContent = requirementsYamlContent + fmt.Sprintf(`
@@ -309,6 +254,8 @@ func (r *Runner) Chartify(release, dirOrChart string, opts ...ChartifyOption) (s
 	}
 
 	{
+		// Flatten the chart by fetching dependent chart archives and merging their K8s manifests into the temporary local chart
+		// So that we can uniformly patch them with JSON patch, Strategic-Merge patch, or with injectors
 		_, err := r.Run("helm", "dependency", "build", tempDir)
 		if err != nil {
 			return "", err
@@ -340,7 +287,7 @@ func (r *Runner) Chartify(release, dirOrChart string, opts ...ChartifyOption) (s
 
 			replaceRenderOpts := ReplaceWithRenderedOpts{
 				Namespace:   u.Namespace,
-				SetValues:      u.SetValues,
+				SetValues:   u.SetValues,
 				ValuesFiles: u.ValuesFiles,
 			}
 			if err := r.ReplaceWithRendered(release, subchartDir, templateFiles, replaceRenderOpts); err != nil {
@@ -356,120 +303,16 @@ func (r *Runner) Chartify(release, dirOrChart string, opts ...ChartifyOption) (s
 
 	{
 		if isChart && (len(u.JsonPatches) > 0 || len(u.StrategicMergePatches) > 0) {
-			kustomizationYamlContent := `kind: ""
-apiversion: ""
-resources:
-`
-			for _, f := range generatedManifestFiles {
-				f = strings.Replace(f, tempDir+"/", "", 1)
-				kustomizationYamlContent += `- ` + f + "\n"
+			patchOpts := &PatchOpts{
+				JsonPatches:           u.JsonPatches,
+				StrategicMergePatches: u.StrategicMergePatches,
 			}
-
-			if len(u.JsonPatches) > 0 {
-				kustomizationYamlContent += `patchesJson6902:
-`
-				for i, f := range u.JsonPatches {
-					fileBytes, err := ioutil.ReadFile(f)
-					if err != nil {
-						return "", err
-					}
-
-					type jsonPatch struct {
-						Target map[string]string        `yaml:"target"`
-						Patch  []map[string]interface{} `yaml:"patch"`
-						Path   string                   `yaml:"path"`
-					}
-					patch := jsonPatch{}
-					if err := yaml.Unmarshal(fileBytes, &patch); err != nil {
-						return "", err
-					}
-
-					buf := &bytes.Buffer{}
-					encoder := yaml.NewEncoder(buf)
-					encoder.SetIndent(2)
-					if err := encoder.Encode(map[string]interface{}{"target": patch.Target}); err != nil {
-						return "", err
-					}
-					targetBytes := buf.Bytes()
-
-					for i, line := range strings.Split(string(targetBytes), "\n") {
-						if i == 0 {
-							line = "- " + line
-						} else {
-							line = "  " + line
-						}
-						kustomizationYamlContent += line + "\n"
-					}
-
-					var path string
-					if patch.Path != "" {
-						path = patch.Path
-					} else if len(patch.Patch) > 0 {
-						buf := &bytes.Buffer{}
-						encoder := yaml.NewEncoder(buf)
-						encoder.SetIndent(2)
-						err := encoder.Encode(patch.Patch)
-						if err != nil {
-							return "", err
-						}
-						jsonPatchData := buf.Bytes()
-						path = filepath.Join("jsonpatches", fmt.Sprintf("patch.%d.yaml", i))
-						abspath := filepath.Join(tempDir, path)
-						if err := os.Mkdir(filepath.Dir(abspath), 0755); err != nil {
-							return "", err
-						}
-						klog.Infof("%s:\n%s", path, jsonPatchData)
-						if err := ioutil.WriteFile(abspath, jsonPatchData, 0644); err != nil {
-							return "", err
-						}
-					} else {
-						return "", fmt.Errorf("either \"path\" or \"patch\" must be set in %s", f)
-					}
-					kustomizationYamlContent += "  path: " + path + "\n"
-				}
-			}
-
-			if len(u.StrategicMergePatches) > 0 {
-				kustomizationYamlContent += `patchesStrategicMerge:
-`
-				for i, f := range u.StrategicMergePatches {
-					bytes, err := ioutil.ReadFile(f)
-					if err != nil {
-						return "", err
-					}
-					path := filepath.Join("strategicmergepatches", fmt.Sprintf("patch.%d.yaml", i))
-					abspath := filepath.Join(tempDir, path)
-					if err := os.Mkdir(filepath.Dir(abspath), 0755); err != nil {
-						return "", err
-					}
-					if err := ioutil.WriteFile(abspath, bytes, 0644); err != nil {
-						return "", err
-					}
-					kustomizationYamlContent += `- ` + path + "\n"
-				}
-			}
-
-			if err := ioutil.WriteFile(filepath.Join(tempDir, "kustomization.yaml"), []byte(kustomizationYamlContent), 0644); err != nil {
-				return "", err
-			}
-
-			klog.Infof("generated and using kustomization.yaml:\n%s", kustomizationYamlContent)
-
-			renderedFile := filepath.Join(tempDir, "templates/rendered.yaml")
-			klog.Infof("generating %s", renderedFile)
-			_, err := r.Run("kustomize", "build", tempDir, "--output", renderedFile)
+			patchedAndConcatenated, err := r.Patch(tempDir, generatedManifestFiles, patchOpts)
 			if err != nil {
 				return "", err
 			}
 
-			for _, f := range generatedManifestFiles {
-				klog.Infof("removing %s", f)
-				if err := os.Remove(f); err != nil {
-					return "", err
-				}
-			}
-
-			generatedManifestFiles = []string{renderedFile}
+			generatedManifestFiles = []string{patchedAndConcatenated}
 		}
 	}
 

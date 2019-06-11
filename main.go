@@ -348,7 +348,7 @@ func chartifyOptsFromFlags(f *pflag.FlagSet) *helmx.ChartifyOpts {
 
 	f.StringArrayVar(&chartifyOpts.Injectors, "injector", []string{}, "DEPRECATED: Use `--inject \"CMD ARG1 ARG2\"` instead. injector to use (must be pre-installed) and flags to be passed in the syntax of `'CMD SUBCMD,FLAG1=VAL1,FLAG2=VAL2'`. Flags should be without leading \"--\" (can specify multiple). \"FILE\" in values are replaced with the Kubernetes manifest file being injected. Example: \"--injector 'istioctl kube-inject f=FILE,injectConfigFile=inject-config.yaml,meshConfigFile=mesh.config.yaml\"")
 	f.StringArrayVar(&chartifyOpts.Injects, "inject", []string{}, "injector to use (must be pre-installed) and flags to be passed in the syntax of `'istioctl kube-inject -f FILE'`. \"FILE\" is replaced with the Kubernetes manifest file being injected")
-	f.StringArrayVar(&chartifyOpts.AdhocChartDependencies, "adhoc-dependency", []string{}, "Adhoc dependencies to be added to the temporary local helm chart being installed. Syntax: ALIAS=REPO/CHART:VERSION e.g. mydb=stable/mysql:1.2.3")
+	f.StringArrayVar(&chartifyOpts.AdhocChartDependencies, "dependency", []string{}, "Adhoc dependencies to be added to the temporary local helm chart being installed. Syntax: ALIAS=REPO/CHART:VERSION e.g. mydb=stable/mysql:1.2.3")
 	f.StringArrayVar(&chartifyOpts.JsonPatches, "json-patch", []string{}, "Kustomize JSON Patch file to be applied to the rendered K8s manifests. Allows customizing your chart without forking or updating")
 	f.StringArrayVar(&chartifyOpts.StrategicMergePatches, "strategic-merge-patch", []string{}, "Kustomize Strategic Merge Patch file to be applied to the rendered K8s manifests. Allows customizing your chart without forking or updating")
 
