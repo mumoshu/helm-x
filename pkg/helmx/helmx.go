@@ -2,7 +2,6 @@ package helmx
 
 import (
 	"fmt"
-	"io"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -42,15 +41,6 @@ func (img KustomizeImage) String() string {
 		res = res + "@" + img.Digest
 	}
 	return res
-}
-
-type RenderOpts struct {
-	*ChartifyOpts
-
-	IncludeReleaseConfigmap bool
-	IncludeReleaseSecret    bool
-
-	Out io.Writer
 }
 
 type ClientOpts struct {
@@ -136,70 +126,6 @@ func (r *Runner) untarUnderDir(path, tempDir string) (string, error) {
 		return "", fmt.Errorf("%d additional files found in temp direcotry. This is very strange:\n%s", len(files)-1, strings.Join(fs, "\n"))
 	}
 	return filepath.Join(tempDir, files[0].Name()), nil
-}
-
-type fileOptions struct {
-	basePath     string
-	matchSubPath string
-	fileType     string
-}
-
-// getFilesToActOn returns a slice of files that are within the base path, has a matching sub path and file type
-func getFilesToActOn(o fileOptions) ([]string, error) {
-	var files []string
-
-	err := filepath.Walk(o.basePath, func(path string, info os.FileInfo, err error) error {
-		if !strings.Contains(path, o.matchSubPath+"/") {
-			return nil
-		}
-		if !strings.HasSuffix(path, o.fileType) {
-			return nil
-		}
-		files = append(files, path)
-		return nil
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return files, nil
-}
-
-type templateOptions struct {
-	values      []string
-	valuesFiles []string
-	namespace   string
-}
-
-func (r *Runner) templateEach(name, chart string, files []string, o templateOptions) error {
-	var additionalFlags string
-	additionalFlags += createFlagChain("set", o.values)
-	defaultValuesPath := filepath.Join(chart, "values.yaml")
-	exists, err := exists(defaultValuesPath)
-	if err != nil {
-		return err
-	}
-	if exists {
-		additionalFlags += createFlagChain("f", []string{defaultValuesPath})
-	}
-	additionalFlags += createFlagChain("f", o.valuesFiles)
-	if o.namespace != "" {
-		additionalFlags += createFlagChain("namespace", []string{o.namespace})
-	}
-
-	for _, file := range files {
-		command := fmt.Sprintf("helm template --debug=false %s --name %s -x %s%s", chart, name, file, additionalFlags)
-		stdout, stderr, err := r.DeprecatedCaptureBytes(command)
-		if err != nil || len(stderr) != 0 {
-			return fmt.Errorf(string(stderr))
-		}
-		if err := ioutil.WriteFile(file, stdout, 0644); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 // DeprecatedExec takes a command as a string and executes it

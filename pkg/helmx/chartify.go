@@ -89,22 +89,23 @@ func (r *Runner) Chartify(release, dirOrChart string, opts ...ChartifyOption) (s
 	generatedManifestFiles := []string{}
 
 	if isChart {
-		templateFileOptions := fileOptions{
+		templateFileOptions := SearchFileOpts{
 			basePath:     tempDir,
 			matchSubPath: "templates",
 			fileType:     "yaml",
 		}
-		templateFiles, err := getFilesToActOn(templateFileOptions)
+		templateFiles, err := r.SearchFiles(templateFileOptions)
 		if err != nil {
 			return "", err
 		}
 
-		templateOptions := templateOptions{
-			namespace:   u.Namespace,
-			values:      u.SetValues,
-			valuesFiles: u.ValuesFiles,
+		templateOptions := ReplaceWithRenderedOpts{
+			Namespace:   u.Namespace,
+			SetValues:      u.SetValues,
+			ValuesFiles: u.ValuesFiles,
+			ChartVersion: u.ChartVersion,
 		}
-		if err := r.templateEach(release, tempDir, templateFiles, templateOptions); err != nil {
+		if err := r.ReplaceWithRendered(release, tempDir, templateFiles, templateOptions); err != nil {
 			return "", err
 		}
 
@@ -198,11 +199,11 @@ func (r *Runner) Chartify(release, dirOrChart string, opts ...ChartifyOption) (s
 	}
 
 	if !isChart && !isKustomization {
-		manifestFileOptions := fileOptions{
+		manifestFileOptions := SearchFileOpts{
 			basePath: tempDir,
 			fileType: "yaml",
 		}
-		manifestFiles, err := getFilesToActOn(manifestFileOptions)
+		manifestFiles, err := r.SearchFiles(manifestFileOptions)
 		if err != nil {
 			return "", err
 		}
@@ -327,22 +328,22 @@ func (r *Runner) Chartify(release, dirOrChart string, opts ...ChartifyOption) (s
 				return "", fmt.Errorf("fetchAndUntarUnderDir: %v", err)
 			}
 
-			templateFileOptions := fileOptions{
+			templateFileOptions := SearchFileOpts{
 				basePath:     subchartDir,
 				matchSubPath: "templates",
 				fileType:     "yaml",
 			}
-			templateFiles, err := getFilesToActOn(templateFileOptions)
+			templateFiles, err := r.SearchFiles(templateFileOptions)
 			if err != nil {
 				return "", err
 			}
 
-			templateOptions := templateOptions{
-				namespace:   u.Namespace,
-				values:      u.SetValues,
-				valuesFiles: u.ValuesFiles,
+			replaceRenderOpts := ReplaceWithRenderedOpts{
+				Namespace:   u.Namespace,
+				SetValues:      u.SetValues,
+				ValuesFiles: u.ValuesFiles,
 			}
-			if err := r.templateEach(release, subchartDir, templateFiles, templateOptions); err != nil {
+			if err := r.ReplaceWithRendered(release, subchartDir, templateFiles, replaceRenderOpts); err != nil {
 				return "", err
 			}
 

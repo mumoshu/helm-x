@@ -3,8 +3,18 @@ package helmx
 import (
 	"fmt"
 	"github.com/mumoshu/helm-x/pkg/releasetool"
+	"io"
 	"strings"
 )
+
+type RenderOpts struct {
+	*ChartifyOpts
+
+	IncludeReleaseConfigmap bool
+	IncludeReleaseSecret    bool
+
+	Out io.Writer
+}
 
 // Render generates K8s manifests for the named release from the chart, and prints the resulting manifests to STDOUT
 func (r *Runner) Render(release, chart string, templateOpts RenderOpts) error {
@@ -71,3 +81,4 @@ func (r *Runner) Render(release, chart string, templateOpts RenderOpts) error {
 
 	return nil
 }
+
