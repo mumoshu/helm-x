@@ -17,8 +17,7 @@ type ChartifyOpts struct {
 	// Debug when set to true passes `--debug` flag to `helm` in order to enable debug logging
 	Debug bool
 
-	// ReleaseName is the name of Helm release being installed
-	ReleaseName string
+	//ReleaseName string
 
 	// ValuesFiles are a list of Helm chart values files
 	ValuesFiles []string
@@ -45,9 +44,33 @@ type ChartifyOpts struct {
 	StrategicMergePatches []string
 }
 
+type chartifyOption interface {
+	SetChartifyOption(opts *ChartifyOpts) error
+}
+
+type chartifyOptsSetter struct {
+	o *ChartifyOpts
+}
+
+func (s *chartifyOptsSetter) SetChartifyOption(opts *ChartifyOpts) error {
+	*opts = *s.o
+	return nil
+}
+
+func WithChartifyOpts(opts *ChartifyOpts) chartifyOption {
+	return &chartifyOptsSetter{
+		o: opts,
+	}
+}
+
 // Chartify creates a temporary Helm chart from a directory or a remote chart, and applies various transformations.
 // Returns the full path to the temporary directory containing the generated chart if succeeded.
-func (r *Runner) Chartify(dirOrChart string, u ChartifyOpts) (string, error) {
+//
+// Parameters:
+// * `release` is the name of Helm release being installed
+func (r *Runner) Chartify(release, dirOrChart string, opts ...chartifyOption) (string, error) {
+	u := &ChartifyOpts{}
+
 	tempDir, err := r.copyToTempDir(dirOrChart)
 	if err != nil {
 		return "", err
@@ -73,13 +96,11 @@ func (r *Runner) Chartify(dirOrChart string, u ChartifyOpts) (string, error) {
 
 		templateOptions := templateOptions{
 			files:       templateFiles,
-			chart:       tempDir,
-			name:        u.ReleaseName,
 			namespace:   u.Namespace,
 			values:      u.SetValues,
 			valuesFiles: u.ValuesFiles,
 		}
-		if err := r.template(templateOptions); err != nil {
+		if err := r.template(release, tempDir, templateOptions); err != nil {
 			return "", err
 		}
 
@@ -195,7 +216,7 @@ func (r *Runner) Chartify(dirOrChart string, u ChartifyOpts) (string, error) {
 		if u.ChartVersion == "" {
 			return "", fmt.Errorf("--version is required when applying manifests")
 		}
-		chartyaml := fmt.Sprintf("name: \"%s\"\nversion: %s\nappVersion: %s\n", u.ReleaseName, u.ChartVersion, u.ChartVersion)
+		chartyaml := fmt.Sprintf("name: \"%s\"\nversion: %s\nappVersion: %s\n", release, u.ChartVersion, u.ChartVersion)
 		if err := ioutil.WriteFile(filepath.Join(tempDir, "Chart.yaml"), []byte(chartyaml), 0644); err != nil {
 			return "", err
 		}
@@ -314,13 +335,11 @@ func (r *Runner) Chartify(dirOrChart string, u ChartifyOpts) (string, error) {
 
 			templateOptions := templateOptions{
 				files:       templateFiles,
-				chart:       subchartDir,
-				name:        u.ReleaseName,
 				namespace:   u.Namespace,
 				values:      u.SetValues,
 				valuesFiles: u.ValuesFiles,
 			}
-			if err := r.template(templateOptions); err != nil {
+			if err := r.template(release, subchartDir, templateOptions); err != nil {
 				return "", err
 			}
 
@@ -453,9 +472,8 @@ resources:
 	injectOptions := InjectOpts{
 		injectors: u.Injectors,
 		injects:   u.Injects,
-		files:     generatedManifestFiles,
 	}
-	if err := r.Inject(injectOptions); err != nil {
+	if err := r.Inject(generatedManifestFiles, injectOptions); err != nil {
 		return "", err
 	}
 

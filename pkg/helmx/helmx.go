@@ -168,17 +168,15 @@ func getFilesToActOn(o fileOptions) ([]string, error) {
 
 type templateOptions struct {
 	files       []string
-	chart       string
-	name        string
 	values      []string
 	valuesFiles []string
 	namespace   string
 }
 
-func (r *Runner) template(o templateOptions) error {
+func (r *Runner) template(name, chart string, o templateOptions) error {
 	var additionalFlags string
 	additionalFlags += createFlagChain("set", o.values)
-	defaultValuesPath := filepath.Join(o.chart, "values.yaml")
+	defaultValuesPath := filepath.Join(chart, "values.yaml")
 	exists, err := exists(defaultValuesPath)
 	if err != nil {
 		return err
@@ -192,7 +190,7 @@ func (r *Runner) template(o templateOptions) error {
 	}
 
 	for _, file := range o.files {
-		command := fmt.Sprintf("helm template --debug=false %s --name %s -x %s%s", o.chart, o.name, file, additionalFlags)
+		command := fmt.Sprintf("helm template --debug=false %s --name %s -x %s%s", chart, name, file, additionalFlags)
 		stdout, stderr, err := r.DeprecatedCaptureBytes(command)
 		if err != nil || len(stderr) != 0 {
 			return fmt.Errorf(string(stderr))

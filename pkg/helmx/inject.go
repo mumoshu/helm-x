@@ -9,10 +9,9 @@ import (
 type InjectOpts struct {
 	injectors []string
 	injects   []string
-	files     []string
 }
 
-func (r *Runner) Inject(o InjectOpts) error {
+func (r *Runner) Inject(files []string, o InjectOpts) error {
 	var flagsTemplate string
 	for _, inj := range o.injectors {
 
@@ -31,7 +30,7 @@ func (r *Runner) Inject(o InjectOpts) error {
 				return fmt.Errorf("inject-flags must be in the form of key1=value1[,key2=value2,...]: %v", flag)
 			}
 		}
-		for _, file := range o.files {
+		for _, file := range files {
 			flags := strings.Replace(flagsTemplate, "FILE", file, 1)
 			command := fmt.Sprintf("%s %s", injector, flags)
 			stdout, stderr, err := r.DeprecatedCaptureBytes(command)
@@ -45,7 +44,7 @@ func (r *Runner) Inject(o InjectOpts) error {
 	}
 
 	for _, tmpl := range o.injects {
-		for _, file := range o.files {
+		for _, file := range files {
 			cmd := strings.Replace(tmpl, "FILE", file, 1)
 
 			stdout, stderr, err := r.DeprecatedCaptureBytes(cmd)

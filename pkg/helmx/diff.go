@@ -45,7 +45,7 @@ func (o DiffOpts) GetTLSKey() string {
 	return o.TLSKey
 }
 
-type diffOpts interface {
+type diffOptsProvider interface {
 	GetSetValues() []string
 	GetValuesFiles() []string
 	GetNamespace() string
@@ -55,27 +55,36 @@ type diffOpts interface {
 	GetTLSKey() string
 }
 
-type DiffOption func(*DiffOpts) error
+type diffOption interface {
+	SetDiffOption(*DiffOpts) error
+}
 
-func DiffWith(opts diffOpts) DiffOption {
-	return func(o *DiffOpts) error {
-		o.SetValues = opts.GetSetValues()
-		o.ValuesFiles = opts.GetValuesFiles()
-		o.Namespace = opts.GetNamespace()
-		o.KubeContext = opts.GetKubeContext()
-		o.TLS = opts.GetTLS()
-		o.TLSCert = opts.GetTLSCert()
-		o.TLSKey = opts.GetTLSKey()
-		return nil
-	}
+type diffOptsSetter struct {
+	o diffOptsProvider
+}
+
+func (s *diffOptsSetter) SetDiffOption(o *DiffOpts) error {
+	opts := s.o
+	o.SetValues = opts.GetSetValues()
+	o.ValuesFiles = opts.GetValuesFiles()
+	o.Namespace = opts.GetNamespace()
+	o.KubeContext = opts.GetKubeContext()
+	o.TLS = opts.GetTLS()
+	o.TLSCert = opts.GetTLSCert()
+	o.TLSKey = opts.GetTLSKey()
+	return nil
+}
+
+func WithDiffOpts(opts diffOptsProvider) diffOption {
+	return &diffOptsSetter{o: opts}
 }
 
 // Diff returns true when the diff succeeds and changes are detected.
-func (r *Runner) Diff(release, chart string, opts ...DiffOption) (bool, error) {
+func (r *Runner) Diff(release, chart string, opts ...diffOption) (bool, error) {
 	o := &DiffOpts{}
 
 	for i := range opts {
-		if err := opts[i](o); err != nil {
+		if err := opts[i].SetDiffOption(o); err != nil {
 			return false, err
 		}
 	}

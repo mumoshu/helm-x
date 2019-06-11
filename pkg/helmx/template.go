@@ -6,15 +6,15 @@ import (
 	"strings"
 )
 
-func (r *Runner) Template(chart string, templateOpts TemplateOpts) error {
+func (r *Runner) Template(release, chart string, templateOpts TemplateOpts) error {
 	var additionalFlags string
 	additionalFlags += createFlagChain("set", templateOpts.SetValues)
 	additionalFlags += createFlagChain("f", templateOpts.ValuesFiles)
 	if templateOpts.Namespace != "" {
 		additionalFlags += createFlagChain("namespace", []string{templateOpts.Namespace})
 	}
-	if templateOpts.ReleaseName != "" {
-		additionalFlags += createFlagChain("name", []string{templateOpts.ReleaseName})
+	if release != "" {
+		additionalFlags += createFlagChain("name", []string{release})
 	}
 	if templateOpts.Debug {
 		additionalFlags += createFlagChain("debug", []string{""})
@@ -58,7 +58,7 @@ func (r *Runner) Template(chart string, templateOpts TemplateOpts) error {
 			releaseManifests = append(releaseManifests, storage.ReleaseToSecret)
 		}
 
-		output, err = releasetool.TurnHelmTemplateToInstall(chartWithoutRepoName, ver, templateOpts.TillerNamespace, templateOpts.ReleaseName, templateOpts.Namespace, string(stdout), releaseManifests...)
+		output, err = releasetool.TurnHelmTemplateToInstall(chartWithoutRepoName, ver, templateOpts.TillerNamespace, release, templateOpts.Namespace, string(stdout), releaseManifests...)
 		if err != nil {
 			return err
 		}

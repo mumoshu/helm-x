@@ -9,7 +9,6 @@ type UpgradeOpts struct {
 	*ChartifyOpts
 	*ClientOpts
 
-	Chart   string
 	Timeout int
 	Install bool
 	DryRun  bool
@@ -21,7 +20,7 @@ type UpgradeOpts struct {
 	Out io.Writer
 }
 
-func (r *Runner) Upgrade(o UpgradeOpts) error {
+func (r *Runner) Upgrade(release, chart string, o UpgradeOpts) error {
 	var additionalFlags string
 	additionalFlags += createFlagChain("set", o.SetValues)
 	additionalFlags += createFlagChain("f", o.ValuesFiles)
@@ -51,7 +50,7 @@ func (r *Runner) Upgrade(o UpgradeOpts) error {
 		additionalFlags += createFlagChain("tls-key", []string{o.TLSKey})
 	}
 
-	command := fmt.Sprintf("helm upgrade %s %s%s", o.ReleaseName, o.Chart, additionalFlags)
+	command := fmt.Sprintf("helm upgrade %s %s%s", release, chart, additionalFlags)
 	stdout, stderr, err := r.DeprecatedCaptureBytes(command)
 	if err != nil || len(stderr) != 0 {
 		return fmt.Errorf(string(stderr))
