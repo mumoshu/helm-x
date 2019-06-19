@@ -16,6 +16,7 @@ type DiffOpts struct {
 
 	AllowUnreleased  bool
 	DetailedExitcode bool
+	ResetValues      bool
 
 	Out io.Writer
 }
@@ -98,12 +99,16 @@ func (r *Runner) Diff(release, chart string, opts ...DiffOption) (bool, error) {
 	}
 
 	var additionalFlags string
-	additionalFlags += createFlagChain("set", o.SetValues)
-	additionalFlags += createFlagChain("f", o.ValuesFiles)
-	additionalFlags += createFlagChain("allow-unreleased", []string{""})
-	additionalFlags += createFlagChain("detailed-exitcode", []string{""})
 	additionalFlags += createFlagChain("context", []string{"3"})
-	additionalFlags += createFlagChain("reset-values", []string{""})
+	if len(o.SetValues) > 0 {
+		additionalFlags += createFlagChain("set", o.SetValues)
+	}
+	if len(o.ValuesFiles) > 0 {
+		additionalFlags += createFlagChain("f", o.ValuesFiles)
+	}
+	if o.ResetValues {
+		additionalFlags += createFlagChain("reset-values", []string{""})
+	}
 	additionalFlags += createFlagChain("suppress-secrets", []string{""})
 	if o.Namespace != "" {
 		additionalFlags += createFlagChain("namespace", []string{o.Namespace})

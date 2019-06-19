@@ -281,6 +281,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 
 	f.BoolVar(&diffOpts.AllowUnreleased, "allow-unreleased", false, "enables diffing of releases that are not yet deployed via Helm")
 	f.BoolVar(&diffOpts.DetailedExitcode, "detailed-exitcode", false, "return a non-zero exit code when there are changes")
+	f.BoolVar(&diffOpts.ResetValues, "reset-values", false, "reset the values to the ones built into the chart and merge in any new values")
 
 	//f.StringVar(&u.release, "name", "", "release name (default \"release-name\")")
 
