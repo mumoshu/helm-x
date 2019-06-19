@@ -116,6 +116,9 @@ func (r *Runner) Diff(release, chart string, opts ...DiffOption) (bool, error) {
 	if o.KubeContext != "" {
 		additionalFlags += createFlagChain("kube-context", []string{o.KubeContext})
 	}
+	if o.ChartVersion != "" {
+		additionalFlags += createFlagChain("version", []string{o.ChartVersion})
+	}
 	if o.TLS {
 		additionalFlags += createFlagChain("tls", []string{""})
 	}

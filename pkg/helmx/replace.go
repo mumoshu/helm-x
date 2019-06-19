@@ -41,9 +41,6 @@ func (r *Runner) ReplaceWithRendered(name, chart string, files []string, o Repla
 	if o.Namespace != "" {
 		additionalFlags += createFlagChain("namespace", []string{o.Namespace})
 	}
-	if o.ChartVersion != "" {
-		additionalFlags += createFlagChain("version", []string{o.ChartVersion})
-	}
 
 	klog.Infof("options: %v", o)
 
