@@ -3,9 +3,16 @@ package helmx
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/mumoshu/helm-x/pkg/releasetool"
 	"io"
+	"io/ioutil"
+	"os"
 	"strings"
+
+	"github.com/pkg/errors"
+	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/helm/pkg/tiller/environment"
+
+	"github.com/mumoshu/helm-x/pkg/releasetool"
 )
 
 type AdoptOpts struct {
@@ -21,7 +28,35 @@ type AdoptOption interface {
 	SetAdoptOption(*AdoptOpts) error
 }
 
-func (r *Runner) Adopt(release string, resources []string, opts ...AdoptOption) error {
+// namespace returns the namespace of tiller
+// https://github.com/helm/helm/blob/a93ebe17d69e8bf99bdf4880acb40499653dd033/cmd/tiller/tiller.go#L256-L270
+func getTillerNamespace() string {
+	if ns := os.Getenv("TILLER_NAMESPACE"); ns != "" {
+		return ns
+	}
+
+	// Fall back to the namespace associated with the service account token, if available
+	if data, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
+		if ns := strings.TrimSpace(string(data)); len(ns) > 0 {
+			return ns
+		}
+	}
+
+	return environment.DefaultTillerNamespace
+}
+
+func getActiveContext(pathOptions *clientcmd.PathOptions) string {
+	apiConfig, err := pathOptions.GetStartingConfig()
+	if err != nil {
+		return ""
+	}
+	if ctx, ok := apiConfig.Contexts[apiConfig.CurrentContext]; ok && ctx != nil {
+		return ctx.Namespace
+	}
+	return ""
+}
+
+func (r *Runner) Adopt(release string, resources []string, pathOptions *clientcmd.PathOptions,opts ...AdoptOption) error {
 	o := &AdoptOpts{}
 	for i := range opts {
 		if err := opts[i].SetAdoptOption(o); err != nil {
@@ -30,6 +65,9 @@ func (r *Runner) Adopt(release string, resources []string, opts ...AdoptOption) 
 	}
 
 	tillerNs := o.TillerNamespace
+	if tillerNs == "" {
+		tillerNs = getTillerNamespace()
+	}
 	namespace := o.Namespace
 
 	storage, err := releasetool.NewConfigMapBackedReleaseTool(tillerNs)
@@ -37,13 +75,16 @@ func (r *Runner) Adopt(release string, resources []string, opts ...AdoptOption) 
 		return err
 	}
 
-	kubectlArgs := []string{"get", "-o=json", "--export"}
+	kubectlArgs := []string{"get", "-o=json"}
 
 	var ns string
 	if namespace != "" {
 		ns = namespace
 	} else {
-		ns = "default"
+		ns = getActiveContext(pathOptions)
+		if ns == "" {
+			ns = "default"
+		}
 	}
 	kubectlArgs = append(kubectlArgs, "-n="+ns)
 
