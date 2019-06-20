@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 
 	"gopkg.in/yaml.v3"
@@ -23,7 +24,7 @@ type KustomizeBuildOption interface {
 	SetKustomizeBuildOption(opts *KustomizeBuildOpts) error
 }
 
-func (r *Runner) KustomizeBuild(tempDir string, opts ...KustomizeBuildOption) (string, error) {
+func (r *Runner) KustomizeBuild(srcDir string, tempDir string, opts ...KustomizeBuildOption) (string, error) {
 	kustomizeOpts := KustomizeOpts{}
 	u := &KustomizeBuildOpts{}
 
@@ -60,6 +61,19 @@ func (r *Runner) KustomizeBuild(tempDir string, opts ...KustomizeBuildOption) (s
 		return "", err
 	}
 
+	evaluatedPath, err := filepath.EvalSymlinks(tempDir)
+	if err != nil {
+		return "", err
+	}
+	relPath, err := filepath.Rel(evaluatedPath, path.Join(prevDir, srcDir))
+	if err != nil {
+		return "", err
+	}
+	baseFile := []byte("bases:\n- " + relPath + "\n")
+	if err := ioutil.WriteFile(path.Join(tempDir, "kustomization.yaml"), baseFile, 0644); err != nil {
+		return "", err
+	}
+
 	if len(kustomizeOpts.Images) > 0 {
 		args := []string{"edit", "set", "image"}
 		for _, image := range kustomizeOpts.Images {
@@ -91,7 +105,7 @@ func (r *Runner) KustomizeBuild(tempDir string, opts ...KustomizeBuildOption) (s
 		}
 	}
 	kustomizeFile := filepath.Join(tempDir, "kustomized.yaml")
-	out, err := r.Run("kustomize", "-o", kustomizeFile, "build", tempDir)
+	out, err := r.Run("kustomize", "-o", kustomizeFile, "build", "--load_restrictor=none", tempDir)
 	if err != nil {
 		return "", err
 	}

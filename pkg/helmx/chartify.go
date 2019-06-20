@@ -80,9 +80,19 @@ func (r *Runner) Chartify(release, dirOrChart string, opts ...ChartifyOption) (s
 		}
 	}
 
-	tempDir, err := r.copyToTempDir(dirOrChart)
+	isKustomization, err := exists(filepath.Join(dirOrChart, "kustomization.yaml"))
 	if err != nil {
 		return "", err
+	}
+
+	var tempDir string
+	if !isKustomization {
+		tempDir, err = r.copyToTempDir(dirOrChart)
+		if err != nil {
+			return "", err
+		}
+	} else {
+		tempDir = mkRandomDir(os.TempDir())
 	}
 
 	isChart, err := exists(filepath.Join(tempDir, "Chart.yaml"))
@@ -103,17 +113,12 @@ func (r *Runner) Chartify(release, dirOrChart string, opts ...ChartifyOption) (s
 		}
 	}
 
-	isKustomization, err := exists(filepath.Join(tempDir, "kustomization.yaml"))
-	if err != nil {
-		return "", err
-	}
-
 	if isKustomization {
 		kustomOpts := &KustomizeBuildOpts{
 			ValuesFiles: u.ValuesFiles,
 			SetValues:   u.SetValues,
 		}
-		kustomizeFile, err := r.KustomizeBuild(tempDir, kustomOpts)
+		kustomizeFile, err := r.KustomizeBuild(dirOrChart, tempDir, kustomOpts)
 		if err != nil {
 			return "", err
 		}
