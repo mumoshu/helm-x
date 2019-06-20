@@ -328,6 +328,7 @@ So that the full command looks like:
 				pathOptions,
 				helmx.TillerNamespace(adoptOpts.TillerNamespace),
 				helmx.Namespace(adoptOpts.Namespace),
+				helmx.TillerStorageBackend(adoptOpts.TillerStorageBackend),
 			)
 		},
 	}
