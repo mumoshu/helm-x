@@ -56,7 +56,7 @@ func getActiveContext(pathOptions *clientcmd.PathOptions) string {
 	return ""
 }
 
-func (r *Runner) Adopt(release string, resources []string, pathOptions *clientcmd.PathOptions,opts ...AdoptOption) error {
+func (r *Runner) Adopt(release string, resources []string, pathOptions *clientcmd.PathOptions, opts ...AdoptOption) error {
 	o := &AdoptOpts{}
 	for i := range opts {
 		if err := opts[i].SetAdoptOption(o); err != nil {
