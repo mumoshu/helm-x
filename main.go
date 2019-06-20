@@ -5,14 +5,17 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/mumoshu/helm-x/pkg/helmx"
-	"github.com/mumoshu/helm-x/pkg/releasetool"
-	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 	"io"
 	"io/ioutil"
-	"k8s.io/klog"
 	"os"
+
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/klog"
+
+	"github.com/mumoshu/helm-x/pkg/helmx"
+	"github.com/mumoshu/helm-x/pkg/releasetool"
 
 	"gopkg.in/yaml.v3"
 )
@@ -80,6 +83,7 @@ type dumpCmd struct {
 // NewApplyCommand represents the apply command
 func NewApplyCommand(out io.Writer, cmdName string, installByDefault bool) *cobra.Command {
 	upOpts := &helmx.UpgradeOpts{Out: out}
+	pathOptions := clientcmd.NewDefaultPathOptions()
 
 	cmd := &cobra.Command{
 		Use:   fmt.Sprintf("%s [RELEASE] [DIR_OR_CHART]", cmdName),
@@ -123,6 +127,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 				if err := helmx.New().Adopt(
 					release,
 					upOpts.Adopt,
+					pathOptions,
 					helmx.TillerNamespace(upOpts.TillerNamespace),
 					helmx.Namespace(upOpts.Namespace),
 				); err != nil {
@@ -153,6 +158,8 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 	f.BoolVar(&upOpts.ResetValues, "reset-values", false, "reset the values to the ones built into the chart and merge in any new values")
 
 	f.StringSliceVarP(&upOpts.Adopt, "adopt", "", []string{}, "adopt existing k8s resources before apply")
+
+	f.StringVar(&pathOptions.LoadingRules.ExplicitPath, pathOptions.ExplicitFileFlag, pathOptions.LoadingRules.ExplicitPath, "use a particular kubeconfig file")
 
 	return cmd
 }
@@ -291,6 +298,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 // NewAdopt represents the adopt command
 func NewAdopt(out io.Writer) *cobra.Command {
 	adoptOpts := &helmx.AdoptOpts{Out: out}
+	pathOptions := clientcmd.NewDefaultPathOptions()
 
 	cmd := &cobra.Command{
 		Use: "adopt [RELEASE] [RESOURCES]...",
@@ -312,10 +320,15 @@ So that the full command looks like:
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			release := args[0]
-			tillerNs := adoptOpts.TillerNamespace
 			resources := args[1:]
 
-			return helmx.New().Adopt(release, resources, helmx.TillerNamespace(tillerNs), helmx.Namespace(adoptOpts.Namespace))
+			return helmx.New().Adopt(
+				release,
+				resources,
+				pathOptions,
+				helmx.TillerNamespace(adoptOpts.TillerNamespace),
+				helmx.Namespace(adoptOpts.Namespace),
+			)
 		},
 	}
 	f := cmd.Flags()
@@ -323,6 +336,8 @@ So that the full command looks like:
 	adoptOpts.ClientOpts = clientOptsFromFlags(f)
 
 	f.StringVar(&adoptOpts.Namespace, "namespace", "", "The Namespace in which the resources to be adopted reside")
+
+	f.StringVar(&pathOptions.LoadingRules.ExplicitPath, pathOptions.ExplicitFileFlag, pathOptions.LoadingRules.ExplicitPath, "use a particular kubeconfig file")
 
 	return cmd
 }
