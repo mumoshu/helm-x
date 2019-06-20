@@ -3,22 +3,30 @@ module github.com/mumoshu/helm-x
 go 1.12
 
 require (
+	github.com/BurntSushi/toml v0.3.1 // indirect
 	github.com/MakeNowJust/heredoc v0.0.0-20171113091838-e9091a26100e // indirect
+	github.com/Masterminds/goutils v1.1.0 // indirect
+	github.com/Masterminds/semver v1.4.2 // indirect
+	github.com/Masterminds/sprig v2.20.0+incompatible // indirect
 	github.com/chai2010/gettext-go v0.0.0-20170215093142-bf70f2a70fb1 // indirect
+	github.com/cyphar/filepath-securejoin v0.2.2 // indirect
 	github.com/docker/distribution v2.7.1+incompatible // indirect
 	github.com/docker/docker v1.13.1 // indirect
 	github.com/docker/spdystream v0.0.0-20181023171402-6480d4af844c // indirect
 	github.com/evanphx/json-patch v4.2.0+incompatible // indirect
 	github.com/exponent-io/jsonpath v0.0.0-20151013193312-d6023ce2651d // indirect
 	github.com/go-openapi/spec v0.19.0 // indirect
+	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/gogo/protobuf v1.2.1 // indirect
 	github.com/golang/groupcache v0.0.0-20190129154638-5b532d6fd5ef // indirect
 	github.com/golang/protobuf v1.3.1
 	github.com/google/btree v1.0.0 // indirect
 	github.com/google/gofuzz v1.0.0 // indirect
+	github.com/google/uuid v1.1.1 // indirect
 	github.com/googleapis/gnostic v0.2.0 // indirect
 	github.com/gregjones/httpcache v0.0.0-20190212212710-3befbb6ad0cc // indirect
 	github.com/hashicorp/golang-lru v0.5.1 // indirect
+	github.com/huandu/xstrings v1.2.0 // indirect
 	github.com/imdario/mergo v0.3.7 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0
 	github.com/json-iterator/go v1.1.6 // indirect
@@ -46,7 +54,7 @@ require (
 	k8s.io/apimachinery v0.0.0-20190515023456-b74e4c97951f
 	k8s.io/apiserver v0.0.0-20190515064100-fc28ef5782df // indirect
 	k8s.io/cli-runtime v0.0.0-20190515024640-178667528169
-	k8s.io/client-go v11.0.0+incompatible // indirect
+	k8s.io/client-go v11.0.0+incompatible
 	k8s.io/helm v2.13.1+incompatible
 	k8s.io/klog v0.3.0
 	k8s.io/kube-openapi v0.0.0-20190510232812-a01b7d5d6c22 // indirect
