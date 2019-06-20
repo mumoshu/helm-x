@@ -315,7 +315,7 @@ So that the full command looks like:
 			tillerNs := adoptOpts.TillerNamespace
 			resources := args[1:]
 
-			return helmx.New().Adopt(release, resources, helmx.TillerNamespace(tillerNs), helmx.Namespace(adoptOpts.Namespace))
+			return helmx.New().Adopt(release, resources, helmx.TillerNamespace(tillerNs), helmx.Namespace(adoptOpts.Namespace), helmx.TillerStorageBackend(adoptOpts.TillerStorageBackend))
 		},
 	}
 	f := cmd.Flags()

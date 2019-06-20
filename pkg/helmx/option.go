@@ -41,3 +41,21 @@ func Namespace(ns string) *namespace {
 
 var _ AdoptOption = &namespace{}
 var _ DiffOption = &namespace{}
+
+type storage struct {
+	storage string
+}
+
+func (s *storage) SetAdoptOption(o *AdoptOpts) error {
+	if o.ClientOpts == nil {
+		o.ClientOpts = &ClientOpts{}
+	}
+	o.ClientOpts.TillerStorageBackend = s.storage
+	return nil
+}
+
+func TillerStorageBackend(s string) *storage {
+	return &storage{storage: s}
+}
+
+var _ AdoptOption = &storage{}

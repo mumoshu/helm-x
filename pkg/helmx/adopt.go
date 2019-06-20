@@ -32,9 +32,21 @@ func (r *Runner) Adopt(release string, resources []string, opts ...AdoptOption) 
 	tillerNs := o.TillerNamespace
 	namespace := o.Namespace
 
-	storage, err := releasetool.NewConfigMapBackedReleaseTool(tillerNs)
-	if err != nil {
-		return err
+	var storage *releasetool.ReleaseTool
+	var err error
+	switch o.TillerStorageBackend {
+	case "configmaps":
+		storage, err = releasetool.NewConfigMapBackedReleaseTool(tillerNs)
+		if err != nil {
+			return err
+		}
+	case "secrets":
+		storage, err = releasetool.NewSecretBackednReleaseTool(tillerNs)
+		if err != nil {
+			return err
+		}
+	default:
+		return errors.Errorf("unsupported tiller storage backend: %s", o.TillerStorageBackend)
 	}
 
 	kubectlArgs := []string{"get", "-o=json", "--export"}
