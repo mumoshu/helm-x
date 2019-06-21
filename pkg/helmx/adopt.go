@@ -130,7 +130,7 @@ func (r *Runner) Adopt(release string, resources []string, pathOptions *clientcm
 
 		metadata := item["metadata"].(map[string]interface{})
 		escaped := fmt.Sprintf("%s.%s", metadata["name"], strings.ToLower(item["kind"].(string)))
-		manifest += manifest + fmt.Sprintf("\n---\n# Source: helm-x-dummy-chart/templates/%s.yaml\n", escaped) + string(yamlData)
+		manifest += fmt.Sprintf("\n---\n# Source: helm-x-dummy-chart/templates/%s.yaml\n", escaped) + string(yamlData)
 	} else {
 		type jsonVal struct {
 			Items []map[string]interface{} `json:"items"`
@@ -156,7 +156,7 @@ func (r *Runner) Adopt(release string, resources []string, pathOptions *clientcm
 
 			metadata := item["metadata"].(map[string]interface{})
 			escaped := fmt.Sprintf("%s.%s", metadata["name"], strings.ToLower(item["kind"].(string)))
-			manifest += manifest + fmt.Sprintf("\n---\n# Source: helm-x-dummy-chart/templates/%s.yaml\n", escaped) + string(yamlData)
+			manifest += fmt.Sprintf("\n---\n# Source: helm-x-dummy-chart/templates/%s.yaml\n", escaped) + string(yamlData)
 		}
 	}
 
