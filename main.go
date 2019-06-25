@@ -410,6 +410,7 @@ func chartifyOptsFromFlags(f *pflag.FlagSet) *helmx.ChartifyOpts {
 	f.StringVar(&chartifyOpts.ChartVersion, "version", "", "specify the exact chart version to use. If this is not specified, the latest version is used")
 
 	f.BoolVar(&chartifyOpts.Debug, "debug", os.Getenv("HELM_X_DEBUG") == "on", "enable verbose output")
+	f.BoolVar(&chartifyOpts.EnableKustomizeAlphaPlugins, "enable_alpha_plugins", false, "Enable the use of kustomize plugins")
 
 	return chartifyOpts
 }

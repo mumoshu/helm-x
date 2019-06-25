@@ -33,6 +33,9 @@ type ChartifyOpts struct {
 	// TillerNamespace is the namespace Tiller or Helm v3 creates "release" objects(configmaps or secrets depending on the storage backend chosen)
 	TillerNamespace string
 
+	// EnableKustomizAlphaPlugins will add the `--enable_alpha_goplugins_accept_panic_risk` flag when running `kustomize build`
+	EnableKustomizeAlphaPlugins bool
+
 	Injectors []string
 	Injects   []string
 
@@ -117,6 +120,7 @@ func (r *Runner) Chartify(release, dirOrChart string, opts ...ChartifyOption) (s
 		kustomOpts := &KustomizeBuildOpts{
 			ValuesFiles: u.ValuesFiles,
 			SetValues:   u.SetValues,
+			EnableAlphaPlugins: u.EnableKustomizeAlphaPlugins,
 		}
 		kustomizeFile, err := r.KustomizeBuild(dirOrChart, tempDir, kustomOpts)
 		if err != nil {

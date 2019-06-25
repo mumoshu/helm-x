@@ -13,6 +13,7 @@ import (
 type KustomizeBuildOpts struct {
 	ValuesFiles []string
 	SetValues   []string
+	EnableAlphaPlugins bool
 }
 
 func (o *KustomizeBuildOpts) SetKustomizeBuildOption(opts *KustomizeBuildOpts) error {
@@ -105,7 +106,11 @@ func (r *Runner) KustomizeBuild(srcDir string, tempDir string, opts ...Kustomize
 		}
 	}
 	kustomizeFile := filepath.Join(tempDir, "kustomized.yaml")
-	out, err := r.Run("kustomize", "-o", kustomizeFile, "build", "--load_restrictor=none", tempDir)
+	kustomizeArgs := []string{"-o", kustomizeFile, "build", "--load_restrictor=none"}
+	if u.EnableAlphaPlugins {
+		kustomizeArgs = append(kustomizeArgs, "--enable_alpha_plugins")
+	}
+	out, err := r.Run("kustomize", append(kustomizeArgs, tempDir)...)
 	if err != nil {
 		return "", err
 	}
