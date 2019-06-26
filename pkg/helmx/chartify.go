@@ -33,7 +33,7 @@ type ChartifyOpts struct {
 	// TillerNamespace is the namespace Tiller or Helm v3 creates "release" objects(configmaps or secrets depending on the storage backend chosen)
 	TillerNamespace string
 
-	// EnableKustomizAlphaPlugins will add the `--enable_alpha_goplugins_accept_panic_risk` flag when running `kustomize build`
+	// EnableKustomizAlphaPlugins will add the `--enable_alpha_plugins` flag when running `kustomize build`
 	EnableKustomizeAlphaPlugins bool
 
 	Injectors []string
