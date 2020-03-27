@@ -12,7 +12,7 @@ import (
 	"syscall"
 )
 
-func helmFallback(args []string, err error) {
+func helmFallback(r *helmx.Runner, args []string, err error) {
 	errMsg := err.Error()
 	if strings.HasPrefix(errMsg, `unknown command "`) {
 		pattern := regexp.MustCompile(fmt.Sprintf(`unknown command "(.*)" for "%s"`, CommandName))
@@ -24,9 +24,9 @@ func helmFallback(args []string, err error) {
 		subcmd := string(subcmdBytes)
 		switch subcmd {
 		case "completion", "create", "delete", "fetch", "get", "helm-git", "help", "history", "home", "init", "inspect", "list", "logs", "package", "plugin", "repo", "reset", "rollback", "search", "serve", "status", "test", "upgrade", "verify", "version":
-			args = append([]string{"helm"}, args...)
+			args = append([]string{r.HelmBin()}, args...)
 			klog.V(1).Infof("helm-x: executing %s\n", strings.Join(args, " "))
-			helmBin, err := exec.LookPath("helm")
+			helmBin, err := exec.LookPath(r.HelmBin())
 			if err != nil {
 				klog.Errorf("%v", err)
 				os.Exit(1)
@@ -36,9 +36,9 @@ func helmFallback(args []string, err error) {
 				panic(execErr)
 			}
 		case "dependency":
-			args = append([]string{"helm"}, args...)
+			args = append([]string{r.HelmBin()}, args...)
 			klog.V(1).Infof("helm-x: executing %s\n", strings.Join(args, " "))
-			helmBin, err := exec.LookPath("helm")
+			helmBin, err := exec.LookPath(r.HelmBin())
 			if err != nil {
 				klog.Errorf("%v", err)
 				os.Exit(1)

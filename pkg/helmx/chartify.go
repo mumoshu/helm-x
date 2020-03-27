@@ -191,7 +191,7 @@ func (r *Runner) Chartify(release, dirOrChart string, opts ...ChartifyOption) (s
 		}
 
 		var repoUrl string
-		out, err := r.Run("helm", "repo", "list")
+		out, err := r.Run(r.HelmBin(), "repo", "list")
 		if err != nil {
 			return "", err
 		}
@@ -239,7 +239,7 @@ func (r *Runner) Chartify(release, dirOrChart string, opts ...ChartifyOption) (s
 	{
 		// Flatten the chart by fetching dependent chart archives and merging their K8s manifests into the temporary local chart
 		// So that we can uniformly patch them with JSON patch, Strategic-Merge patch, or with injectors
-		_, err := r.Run("helm", "dependency", "build", tempDir)
+		_, err := r.Run(r.HelmBin(), "dependency", "build", tempDir)
 		if err != nil {
 			return "", err
 		}

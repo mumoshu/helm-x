@@ -9,6 +9,8 @@ import (
 )
 
 type Runner struct {
+	helmBin   string
+	isHelm3   bool
 	commander *cmdsite.CommandSite
 }
 
@@ -17,6 +19,20 @@ type Option func(*Runner) error
 func Commander(c cmdsite.RunCommand) Option {
 	return func(r *Runner) error {
 		r.commander.RunCmd = c
+		return nil
+	}
+}
+
+func HelmBin(b string) Option {
+	return func(r *Runner) error {
+		r.helmBin = b
+		return nil
+	}
+}
+
+func UseHelm3(u bool) Option {
+	return func(r *Runner) error {
+		r.isHelm3 = u
 		return nil
 	}
 }
@@ -33,6 +49,13 @@ func New(opts ...Option) *Runner {
 		}
 	}
 	return r
+}
+
+func (r *Runner) HelmBin() string {
+	if r.helmBin != "" {
+		return r.helmBin
+	}
+	return os.Getenv("HELM_BIN")
 }
 
 func (r *Runner) Run(name string, args ...string) (string, error) {

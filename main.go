@@ -25,7 +25,14 @@ var Version string
 var CommandName = "helm-x"
 
 func main() {
-	cmd := NewRootCmd()
+	r := helmx.New()
+
+	bin := r.HelmBin()
+	helm3 := r.IsHelm3()
+
+	r = helmx.New(helmx.HelmBin(bin), helmx.UseHelm3(helm3))
+
+	cmd := NewRootCmd(r)
 	cmd.SilenceErrors = true
 
 	// See https://flowerinthenight.com/blog/2019/02/05/golang-cobra-klog
@@ -47,12 +54,12 @@ func main() {
 	pflag.CommandLine.AddGoFlagSet(fs)
 
 	if err := cmd.Execute(); err != nil {
-		helmFallback(remainings, err)
+		helmFallback(r, remainings, err)
 		klog.Fatalf("%v", err)
 	}
 }
 
-func NewRootCmd() *cobra.Command {
+func NewRootCmd(r *helmx.Runner) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     fmt.Sprintf("%s [apply|diff|template|dump|adopt]", CommandName),
 		Short:   "Turn Kubernetes manifests, Kustomization, Helm Chart into Helm release. Sidecar injection supported.",
@@ -62,12 +69,12 @@ func NewRootCmd() *cobra.Command {
 
 	out := cmd.OutOrStdout()
 
-	cmd.AddCommand(NewApplyCommand(out, "apply", true))
-	cmd.AddCommand(NewApplyCommand(out, "upgrade", false))
-	cmd.AddCommand(NewDiffCommand(out))
-	cmd.AddCommand(NewTemplateCommand(out))
-	cmd.AddCommand(NewUtilDumpRelease(out))
-	cmd.AddCommand(NewAdopt(out))
+	cmd.AddCommand(NewApplyCommand(r, out, "apply", true))
+	cmd.AddCommand(NewApplyCommand(r, out, "upgrade", false))
+	cmd.AddCommand(NewDiffCommand(r, out))
+	cmd.AddCommand(NewTemplateCommand(r, out))
+	cmd.AddCommand(NewUtilDumpRelease(r, out))
+	cmd.AddCommand(NewAdopt(r, out))
 
 	return cmd
 }
@@ -81,7 +88,7 @@ type dumpCmd struct {
 }
 
 // NewApplyCommand represents the apply command
-func NewApplyCommand(out io.Writer, cmdName string, installByDefault bool) *cobra.Command {
+func NewApplyCommand(r *helmx.Runner, out io.Writer, cmdName string, installByDefault bool) *cobra.Command {
 	upOpts := &helmx.UpgradeOpts{Out: out}
 	pathOptions := clientcmd.NewDefaultPathOptions()
 
@@ -111,7 +118,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 			release := args[0]
 			dir := args[1]
 
-			tempLocalChartDir, err := helmx.New().Chartify(release, dir, upOpts.ChartifyOpts)
+			tempLocalChartDir, err := r.Chartify(release, dir, upOpts.ChartifyOpts)
 			if err != nil {
 				cmd.SilenceUsage = true
 				return err
@@ -124,7 +131,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 			}
 
 			if len(upOpts.Adopt) > 0 {
-				if err := helmx.New().Adopt(
+				if err := r.Adopt(
 					release,
 					upOpts.Adopt,
 					pathOptions,
@@ -135,7 +142,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 				}
 			}
 
-			if err := helmx.New().Upgrade(release, tempLocalChartDir, *upOpts); err != nil {
+			if err := r.Upgrade(release, tempLocalChartDir, *upOpts); err != nil {
 				cmd.SilenceUsage = true
 				return err
 			}
@@ -149,7 +156,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 	upOpts.ClientOpts = clientOptsFromFlags(f)
 
 	//f.StringVar(&u.release, "name", "", "release name (default \"release-name\")")
-	f.IntVar(&upOpts.Timeout, "timeout", 300, "time in seconds to wait for any individual Kubernetes operation (like Jobs for hooks)")
+	f.StringVar(&upOpts.Timeout, "timeout", "300", "time in seconds to wait for any individual Kubernetes operation (like Jobs for hooks)")
 
 	f.BoolVar(&upOpts.DryRun, "dry-run", false, "simulate an upgrade")
 
@@ -165,7 +172,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 }
 
 // NewTemplateCommand represents the template command
-func NewTemplateCommand(out io.Writer) *cobra.Command {
+func NewTemplateCommand(r *helmx.Runner, out io.Writer) *cobra.Command {
 	templateOpts := &helmx.RenderOpts{Out: out}
 
 	var release string
@@ -192,7 +199,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 		RunE: func(cmd *cobra.Command, args []string) error {
 			dir := args[0]
 
-			tempLocalChartDir, err := helmx.New().Chartify(release, dir, templateOpts.ChartifyOpts)
+			tempLocalChartDir, err := r.Chartify(release, dir, templateOpts.ChartifyOpts)
 			if err != nil {
 				cmd.SilenceUsage = true
 				return err
@@ -204,7 +211,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 				klog.Infof("helm chart has been written to %s for you to see. please remove it afterwards", tempLocalChartDir)
 			}
 
-			if err := helmx.New().Render(release, tempLocalChartDir, *templateOpts); err != nil {
+			if err := r.Render(release, tempLocalChartDir, *templateOpts); err != nil {
 				cmd.SilenceUsage = true
 				return err
 			}
@@ -224,14 +231,14 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 }
 
 // NewDiffCommand represents the diff command
-func NewDiffCommand(out io.Writer) *cobra.Command {
-	diff := newDiffCommand("diff", out)
-	upgrade := newDiffCommand("upgrade", out)
+func NewDiffCommand(r *helmx.Runner, out io.Writer) *cobra.Command {
+	diff := newDiffCommand(r, "diff", out)
+	upgrade := newDiffCommand(r, "upgrade", out)
 	diff.AddCommand(upgrade)
 	return diff
 }
 
-func newDiffCommand(use string, out io.Writer) *cobra.Command {
+func newDiffCommand(r *helmx.Runner, use string, out io.Writer) *cobra.Command {
 	diffOpts := &helmx.DiffOpts{Out: out}
 
 	cmd := &cobra.Command{
@@ -257,7 +264,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 			release := args[0]
 			dir := args[1]
 
-			tempDir, err := helmx.New().Chartify(release, dir, diffOpts.ChartifyOpts)
+			tempDir, err := r.Chartify(release, dir, diffOpts.ChartifyOpts)
 			if err != nil {
 				cmd.SilenceUsage = true
 				return err
@@ -269,7 +276,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 				defer os.RemoveAll(tempDir)
 			}
 
-			changed, err := helmx.New().Diff(release, tempDir, diffOpts)
+			changed, err := r.Diff(release, tempDir, diffOpts)
 			if err != nil {
 				cmd.SilenceUsage = true
 				return err
@@ -296,7 +303,7 @@ When DIR_OR_CHART contains kustomization.yaml, this runs "kustomize build" to ge
 }
 
 // NewAdopt represents the adopt command
-func NewAdopt(out io.Writer) *cobra.Command {
+func NewAdopt(r *helmx.Runner, out io.Writer) *cobra.Command {
 	adoptOpts := &helmx.AdoptOpts{Out: out}
 	pathOptions := clientcmd.NewDefaultPathOptions()
 
@@ -322,7 +329,7 @@ So that the full command looks like:
 			release := args[0]
 			resources := args[1:]
 
-			return helmx.New().Adopt(
+			return r.Adopt(
 				release,
 				resources,
 				pathOptions,
@@ -344,7 +351,7 @@ So that the full command looks like:
 }
 
 // NewDiffCommand represents the diff command
-func NewUtilDumpRelease(out io.Writer) *cobra.Command {
+func NewUtilDumpRelease(r *helmx.Runner, out io.Writer) *cobra.Command {
 	dumpOpts := &dumpCmd{Out: out}
 
 	cmd := &cobra.Command{

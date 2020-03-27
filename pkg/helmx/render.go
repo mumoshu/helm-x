@@ -34,7 +34,7 @@ func (r *Runner) Render(release, chart string, templateOpts RenderOpts) error {
 		additionalFlags += createFlagChain("--version", []string{templateOpts.ChartVersion})
 	}
 
-	command := fmt.Sprintf("helm template %s%s", chart, additionalFlags)
+	command := fmt.Sprintf("%s template %s%s", r.HelmBin(), chart, additionalFlags)
 	stdout, stderr, err := r.DeprecatedCaptureBytes(command)
 	if err != nil || len(stderr) != 0 {
 		return fmt.Errorf(string(stderr))

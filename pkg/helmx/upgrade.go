@@ -9,7 +9,7 @@ type UpgradeOpts struct {
 	*ChartifyOpts
 	*ClientOpts
 
-	Timeout int
+	Timeout string
 	Install bool
 	DryRun  bool
 
@@ -26,7 +26,11 @@ func (r *Runner) Upgrade(release, chart string, o UpgradeOpts) error {
 	var additionalFlags string
 	additionalFlags += createFlagChain("set", o.SetValues)
 	additionalFlags += createFlagChain("f", o.ValuesFiles)
-	additionalFlags += createFlagChain("timeout", []string{fmt.Sprintf("%d", o.Timeout)})
+	timeout := o.Timeout
+	if r.IsHelm3() {
+		timeout = timeout + "s"
+	}
+	additionalFlags += createFlagChain("timeout", []string{fmt.Sprintf("%s", timeout)})
 	if o.Install {
 		additionalFlags += createFlagChain("install", []string{""})
 	}
@@ -55,7 +59,7 @@ func (r *Runner) Upgrade(release, chart string, o UpgradeOpts) error {
 		additionalFlags += createFlagChain("tls-key", []string{o.TLSKey})
 	}
 
-	command := fmt.Sprintf("helm upgrade %s %s%s", release, chart, additionalFlags)
+	command := fmt.Sprintf("%s upgrade %s %s%s", r.HelmBin(), release, chart, additionalFlags)
 	stdout, stderr, err := r.DeprecatedCaptureBytes(command)
 	if err != nil || len(stderr) != 0 {
 		return fmt.Errorf(string(stderr))

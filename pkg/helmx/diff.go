@@ -135,7 +135,7 @@ func (r *Runner) Diff(release, chart string, opts ...DiffOption) (bool, error) {
 		additionalFlags += createFlagChain("detailed-exitcode", []string{""})
 	}
 
-	command := fmt.Sprintf("helm diff upgrade %s %s%s", release, chart, additionalFlags)
+	command := fmt.Sprintf("%s diff upgrade %s %s%s", r.HelmBin(), release, chart, additionalFlags)
 	if err := r.DeprecatedExec(command); err != nil {
 		switch e := err.(type) {
 		case *exec.ExitError:
