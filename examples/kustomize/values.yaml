@@ -1,15 +1,21 @@
 images:
+# helm-x automatically runs `kustomize edit set image mysql=eu.gcr.io/my-project/mysql:latest`
 - name: mysql
   newName: eu.gcr.io/my-project/mysql
   newTag: latest
+# `kustomize edit set image myapp=my-registry/my-app@sha256:24a0c4b4a4c0eb97a1aabb8e29f18e917d05abfe1b7a7c07857230879ce7d3d3`
 - name: myapp
   digest: sha256:24a0c4b4a4c0eb97a1aabb8e29f18e917d05abfe1b7a7c07857230879ce7d3d3
   newName: my-registry/my-app
 
+# helm-x automatically runs `kustomize edit set nameprefix acme-` as...
 namePrefix: acme-
 
+# `kustomize edit set namespace mykustomizeapp`
 namespace: mykustomizeapp
 
+# helm-x automatically runs `kustomize edit set namesuffix -acme` as...
 nameSuffix: -acme
 
+# Used by `helm test` - See templates/test for helm tests and look for `.Values.testImage`
 testImage: "alpine:3.9"
