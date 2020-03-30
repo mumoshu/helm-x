@@ -55,7 +55,7 @@ Check out the examples in the [examples](/examples) directory!
 
 It keeps all the good things of `helm` as an extendable package manager.
 
-That is, `helm x apply` is able to automatically remove resources that hsa gone from the desired state, without any additions like `--prune` and `--prune-whitelist` of `kubectl apply`.
+That is, `helm x apply` is able to automatically remove resources that have gone from the desired state, without any additions like `--prune` and `--prune-whitelist` of `kubectl apply`.
 
 Also, you can leverage useful `helm` commands like below, even though your app is written with a tool like `kustomize`:
 
