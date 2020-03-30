@@ -47,7 +47,6 @@ version=v${VER}
 #version="$(curl -s https://api.github.com/repos/mumoshu/helm-x/releases/latest | awk '/\"tag_name\":/{gsub( /[,\"]/,"", $2); print $2}')"
 echo "Downloading and installing helm-x ${version} ..."
 
-VER=${version/v/}
 url="https://github.com/mumoshu/helm-x/releases/download/${version}/helm-x_${VER}_${OS}_${ARCH}.tar.gz"
 
 echo $url
