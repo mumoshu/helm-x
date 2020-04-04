@@ -2,13 +2,15 @@ package helmx
 
 import (
 	"fmt"
+	"github.com/variantdev/chartify"
 	"github.com/mumoshu/helm-x/pkg/releasetool"
+	"github.com/mumoshu/helm-x/pkg/util"
 	"io"
 	"strings"
 )
 
 type RenderOpts struct {
-	*ChartifyOpts
+	*chartify.ChartifyOpts
 
 	IncludeReleaseConfigmap bool
 	IncludeReleaseSecret    bool
@@ -19,19 +21,19 @@ type RenderOpts struct {
 // Render generates K8s manifests for the named release from the chart, and prints the resulting manifests to STDOUT
 func (r *Runner) Render(release, chart string, templateOpts RenderOpts) error {
 	var additionalFlags string
-	additionalFlags += createFlagChain("set", templateOpts.SetValues)
-	additionalFlags += createFlagChain("f", templateOpts.ValuesFiles)
+	additionalFlags += util.CreateFlagChain("set", templateOpts.SetValues)
+	additionalFlags += util.CreateFlagChain("f", templateOpts.ValuesFiles)
 	if templateOpts.Namespace != "" {
-		additionalFlags += createFlagChain("namespace", []string{templateOpts.Namespace})
+		additionalFlags += util.CreateFlagChain("namespace", []string{templateOpts.Namespace})
 	}
 	if release != "" {
-		additionalFlags += createFlagChain("name", []string{release})
+		additionalFlags += util.CreateFlagChain("name", []string{release})
 	}
 	if templateOpts.Debug {
-		additionalFlags += createFlagChain("debug", []string{""})
+		additionalFlags += util.CreateFlagChain("debug", []string{""})
 	}
 	if templateOpts.ChartVersion != "" {
-		additionalFlags += createFlagChain("--version", []string{templateOpts.ChartVersion})
+		additionalFlags += util.CreateFlagChain("--version", []string{templateOpts.ChartVersion})
 	}
 
 	command := fmt.Sprintf("%s template %s%s", r.HelmBin(), chart, additionalFlags)

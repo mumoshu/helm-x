@@ -2,11 +2,13 @@ package helmx
 
 import (
 	"fmt"
+	"github.com/variantdev/chartify"
+	"github.com/mumoshu/helm-x/pkg/util"
 	"io"
 )
 
 type UpgradeOpts struct {
-	*ChartifyOpts
+	*chartify.ChartifyOpts
 	*ClientOpts
 
 	Timeout string
@@ -24,39 +26,39 @@ type UpgradeOpts struct {
 
 func (r *Runner) Upgrade(release, chart string, o UpgradeOpts) error {
 	var additionalFlags string
-	additionalFlags += createFlagChain("set", o.SetValues)
-	additionalFlags += createFlagChain("f", o.ValuesFiles)
+	additionalFlags += util.CreateFlagChain("set", o.SetValues)
+	additionalFlags += util.CreateFlagChain("f", o.ValuesFiles)
 	timeout := o.Timeout
 	if r.IsHelm3() {
 		timeout = timeout + "s"
 	}
-	additionalFlags += createFlagChain("timeout", []string{fmt.Sprintf("%s", timeout)})
+	additionalFlags += util.CreateFlagChain("timeout", []string{fmt.Sprintf("%s", timeout)})
 	if o.Install {
-		additionalFlags += createFlagChain("install", []string{""})
+		additionalFlags += util.CreateFlagChain("install", []string{""})
 	}
 	if o.ResetValues {
-		additionalFlags += createFlagChain("reset-values", []string{""})
+		additionalFlags += util.CreateFlagChain("reset-values", []string{""})
 	}
 	if o.Namespace != "" {
-		additionalFlags += createFlagChain("namespace", []string{o.Namespace})
+		additionalFlags += util.CreateFlagChain("namespace", []string{o.Namespace})
 	}
 	if o.KubeContext != "" {
-		additionalFlags += createFlagChain("kube-context", []string{o.KubeContext})
+		additionalFlags += util.CreateFlagChain("kube-context", []string{o.KubeContext})
 	}
 	if o.DryRun {
-		additionalFlags += createFlagChain("dry-run", []string{""})
+		additionalFlags += util.CreateFlagChain("dry-run", []string{""})
 	}
 	if o.Debug {
-		additionalFlags += createFlagChain("debug", []string{""})
+		additionalFlags += util.CreateFlagChain("debug", []string{""})
 	}
 	if o.TLS {
-		additionalFlags += createFlagChain("tls", []string{""})
+		additionalFlags += util.CreateFlagChain("tls", []string{""})
 	}
 	if o.TLSCert != "" {
-		additionalFlags += createFlagChain("tls-cert", []string{o.TLSCert})
+		additionalFlags += util.CreateFlagChain("tls-cert", []string{o.TLSCert})
 	}
 	if o.TLSKey != "" {
-		additionalFlags += createFlagChain("tls-key", []string{o.TLSKey})
+		additionalFlags += util.CreateFlagChain("tls-key", []string{o.TLSKey})
 	}
 
 	command := fmt.Sprintf("%s upgrade %s %s%s", r.HelmBin(), release, chart, additionalFlags)

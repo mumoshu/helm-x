@@ -35,20 +35,21 @@ require (
 	github.com/mitchellh/go-wordwrap v1.0.0 // indirect
 	github.com/modern-go/reflect2 v1.0.1 // indirect
 	github.com/opencontainers/go-digest v1.0.0-rc1 // indirect
-	github.com/otiai10/copy v0.0.0-20180813032824-7e9a647135a1
+	github.com/otiai10/copy v1.1.1
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/pkg/errors v0.8.1
 	github.com/russross/blackfriday v2.0.0+incompatible // indirect
 	github.com/shurcooL/sanitized_anchor_name v1.0.0 // indirect
 	github.com/spf13/cobra v0.0.3
 	github.com/spf13/pflag v1.0.1
+	github.com/variantdev/chartify v0.3.0
 	golang.org/x/crypto v0.0.0-20190513172903-22d7a77e9e5f // indirect
 	golang.org/x/oauth2 v0.0.0-20190402181905-9f3314589c9a // indirect
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/square/go-jose.v2 v2.3.1 // indirect
 	gopkg.in/yaml.v2 v2.2.2
-	gopkg.in/yaml.v3 v3.0.0-20190409140830-cdc409dda467
+	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c
 	k8s.io/api v0.0.0-20190515023547-db5a9d1c40eb
 	k8s.io/apiextensions-apiserver v0.0.0-20190515024537-2fd0e9006049 // indirect
 	k8s.io/apimachinery v0.0.0-20190515023456-b74e4c97951f
@@ -56,7 +57,7 @@ require (
 	k8s.io/cli-runtime v0.0.0-20190515024640-178667528169
 	k8s.io/client-go v11.0.0+incompatible
 	k8s.io/helm v2.13.1+incompatible
-	k8s.io/klog v0.3.0
+	k8s.io/klog v1.0.0
 	k8s.io/kube-openapi v0.0.0-20190510232812-a01b7d5d6c22 // indirect
 	k8s.io/kubernetes v1.13.1
 	k8s.io/utils v0.0.0-20190506122338-8fab8cb257d5 // indirect

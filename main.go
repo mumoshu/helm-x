@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/variantdev/chartify"
 	"io"
 	"io/ioutil"
 	"os"
@@ -401,8 +402,8 @@ func NewUtilDumpRelease(r *helmx.Runner, out io.Writer) *cobra.Command {
 	return cmd
 }
 
-func chartifyOptsFromFlags(f *pflag.FlagSet) *helmx.ChartifyOpts {
-	chartifyOpts := &helmx.ChartifyOpts{}
+func chartifyOptsFromFlags(f *pflag.FlagSet) *chartify.ChartifyOpts {
+	chartifyOpts := &chartify.ChartifyOpts{}
 
 	f.StringArrayVar(&chartifyOpts.Injectors, "injector", []string{}, "DEPRECATED: Use `--inject \"CMD ARG1 ARG2\"` instead. injector to use (must be pre-installed) and flags to be passed in the syntax of `'CMD SUBCMD,FLAG1=VAL1,FLAG2=VAL2'`. Flags should be without leading \"--\" (can specify multiple). \"FILE\" in values are replaced with the Kubernetes manifest file being injected. Example: \"--injector 'istioctl kube-inject f=FILE,injectConfigFile=inject-config.yaml,meshConfigFile=mesh.config.yaml\"")
 	f.StringArrayVar(&chartifyOpts.Injects, "inject", []string{}, "injector to use (must be pre-installed) and flags to be passed in the syntax of `'istioctl kube-inject -f FILE'`. \"FILE\" is replaced with the Kubernetes manifest file being injected")

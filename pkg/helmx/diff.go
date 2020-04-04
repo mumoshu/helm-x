@@ -2,12 +2,14 @@ package helmx
 
 import (
 	"fmt"
+	"github.com/variantdev/chartify"
+	"github.com/mumoshu/helm-x/pkg/util"
 	"io"
 	"os/exec"
 )
 
 type DiffOpts struct {
-	*ChartifyOpts
+	*chartify.ChartifyOpts
 	*ClientOpts
 
 	Chart string
@@ -99,40 +101,40 @@ func (r *Runner) Diff(release, chart string, opts ...DiffOption) (bool, error) {
 	}
 
 	var additionalFlags string
-	additionalFlags += createFlagChain("context", []string{"3"})
+	additionalFlags += util.CreateFlagChain("context", []string{"3"})
 	if len(o.SetValues) > 0 {
-		additionalFlags += createFlagChain("set", o.SetValues)
+		additionalFlags += util.CreateFlagChain("set", o.SetValues)
 	}
 	if len(o.ValuesFiles) > 0 {
-		additionalFlags += createFlagChain("f", o.ValuesFiles)
+		additionalFlags += util.CreateFlagChain("f", o.ValuesFiles)
 	}
 	if o.ResetValues {
-		additionalFlags += createFlagChain("reset-values", []string{""})
+		additionalFlags += util.CreateFlagChain("reset-values", []string{""})
 	}
-	additionalFlags += createFlagChain("suppress-secrets", []string{""})
+	additionalFlags += util.CreateFlagChain("suppress-secrets", []string{""})
 	if o.Namespace != "" {
-		additionalFlags += createFlagChain("namespace", []string{o.Namespace})
+		additionalFlags += util.CreateFlagChain("namespace", []string{o.Namespace})
 	}
 	if o.KubeContext != "" {
-		additionalFlags += createFlagChain("kube-context", []string{o.KubeContext})
+		additionalFlags += util.CreateFlagChain("kube-context", []string{o.KubeContext})
 	}
 	if o.ChartVersion != "" {
-		additionalFlags += createFlagChain("version", []string{o.ChartVersion})
+		additionalFlags += util.CreateFlagChain("version", []string{o.ChartVersion})
 	}
 	if o.TLS {
-		additionalFlags += createFlagChain("tls", []string{""})
+		additionalFlags += util.CreateFlagChain("tls", []string{""})
 	}
 	if o.TLSCert != "" {
-		additionalFlags += createFlagChain("tls-cert", []string{o.TLSCert})
+		additionalFlags += util.CreateFlagChain("tls-cert", []string{o.TLSCert})
 	}
 	if o.TLSKey != "" {
-		additionalFlags += createFlagChain("tls-key", []string{o.TLSKey})
+		additionalFlags += util.CreateFlagChain("tls-key", []string{o.TLSKey})
 	}
 	if o.AllowUnreleased {
-		additionalFlags += createFlagChain("allow-unreleased", []string{""})
+		additionalFlags += util.CreateFlagChain("allow-unreleased", []string{""})
 	}
 	if o.DetailedExitcode {
-		additionalFlags += createFlagChain("detailed-exitcode", []string{""})
+		additionalFlags += util.CreateFlagChain("detailed-exitcode", []string{""})
 	}
 
 	command := fmt.Sprintf("%s diff upgrade %s %s%s", r.HelmBin(), release, chart, additionalFlags)
