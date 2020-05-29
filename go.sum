@@ -233,6 +233,8 @@ github.com/variantdev/chartify v0.0.0-20200330123007-ddc79388188c h1:PiAOZUdKtf8
 github.com/variantdev/chartify v0.0.0-20200330123007-ddc79388188c/go.mod h1:DzFQ1XeNBpbLdbze39ai3auS4b+Xo/KzRluEY/LyqlM=
 github.com/variantdev/chartify v0.3.0 h1:vm9cY+Amj44g7scz/FVpa3s13XqzFvTJrdM6iufiKEM=
 github.com/variantdev/chartify v0.3.0/go.mod h1:0tw+4doFHsNnhttYx7I9Pv/dsZ82BD4UuTV9saBOcfw=
+github.com/variantdev/chartify v0.3.2 h1:EjwlY/ArgkOhsvbMG+xyeBnsWRV6eaxfHfJj9st8PvI=
+github.com/variantdev/chartify v0.3.2/go.mod h1:0tw+4doFHsNnhttYx7I9Pv/dsZ82BD4UuTV9saBOcfw=
 github.com/xiang90/probing v0.0.0-20160813154853-07dd2e8dfe18/go.mod h1:UETIi67q53MR2AWcXfiuqkDkRtnGDLqkBTpCHuJHxtU=
 go.uber.org/atomic v0.0.0-20181018215023-8dc6146f7569/go.mod h1:gD2HeocX3+yG+ygLZcrzQJaqmWj9AIm7n08wl/qW/PE=
 go.uber.org/multierr v0.0.0-20180122172545-ddea229ff1df/go.mod h1:wR5kodmAFQ0UK8QlbwjlSNy0Z68gJhDJUG5sjR94q/0=
