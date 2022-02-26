@@ -1,5 +1,7 @@
 # Helm X Plugin
 
+> NOTE: The most important part of this plugin, "chartification" that turns a set of Kubernetes manifests or a kustomization into a temporary chart, is extracted to https://github.com/variantdev/chartify and maintained there. PTAL!
+
 No more "Kustomize vs Helm".
 
 `helm-x` makes `helm` better integrate with vanilla Kubernetes manifests, [kustomize](https://kustomize.io/), and manual sidecar injections.
