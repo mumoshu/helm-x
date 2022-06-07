@@ -41,6 +41,8 @@ build:
 .PHONY: dist
 dist:
 	mkdir -p $(DIST)
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o $(BINARY_NAME) -ldflags $(LDFLAGS) ./main.go
+	tar -zcvf $(DIST)/$(PLUGIN_NAME)-arm64-$(VERSION).tgz $(BINARY_NAME) README.md LICENSE.txt plugin.yaml
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o $(BINARY_NAME) -ldflags $(LDFLAGS) ./main.go
 	tar -zcvf $(DIST)/$(PLUGIN_NAME)-linux-$(VERSION).tgz $(BINARY_NAME) README.md LICENSE.txt plugin.yaml
 	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -o $(BINARY_NAME) -ldflags $(LDFLAGS) ./main.go
